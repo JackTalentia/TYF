@@ -1,0 +1,53 @@
+Overview
+ - Group = Info!A2:A
+ - Arrival = Info!D2:D
+ - Departure = Info!E2:E
+ - Status = Info!F2:F
+ - Type = Info!G2:G
+ - Source = Info!H2:H
+ - HubSpot Link = Info!I2:I
+ - Contacts
+      - Group = 👤!A5:A
+      - Name  = 👤!B5:B
+      - Job Title = 👤!C5:C
+      - Mobile = 👤!D5:D
+      - Work = 👤!E5:E
+      - Email = 👤!F5:F
+
+Accommodation
+ - Accommodation = Info!K2:K
+ * Booking Method = Info!L2:L
+ - Board = Info!M2:M
+ - Extra Information = Info!P2:P
+ - Accommodation Status	 = Info!Q2:Q
+ - Deposit Date = Info!R2:R
+ - Deposit % = Info!S2:S
+ - Balance Date = Info!T2:T
+ - Balance % = Info!U2:U
+
+Sub Group
+ - Prefix = Info!V2:V
+ - Group Names Info!W2:AL (e.g. Prefix & # & 1)
+ - Group Leaders Info!AM2:BB
+ - Group Leaders Info!BC2:BR
+
+Finance
+ - Admin Charge % = Info!BW2:BW
+ - Charge Type = Info!BX2:BX
+ - Additional Activity Charge = Info!BY2:BY
+ - Other Charges Amount = Info!BZ2:BZ
+ - Other Charges Description = Info!CA2:CA
+ - Discount £ (per person) = Info!CB2:CB
+ - Discount % (per booking) = Info!CC2:CC
+ - Free Places = Info!CD2:CD
+ - Xero Invoice = Info!CE2:CE
+
+Payments
+ - Total Due = 💰!F5:F
+ - Payments Table
+       - Group = 💵A5:A
+       - £ Amount = 💵!B5:B
+       - Due Date = 💵!C5:C
+       - Paid Date = 💵!D5:D
+
+
