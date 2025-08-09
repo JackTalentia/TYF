@@ -20,7 +20,7 @@
       .meta-small{ font-size:10px; color:#7890a8; font-style:italic; margin:2px 0 6px 0; }
       .field{ margin:10px 0 12px 0; }
       .field label{ display:block; font-size:var(--label); font-weight:600; margin-bottom:6px; }
-      input[type="text"], textarea, select, input[type="number"], input[type="date"]{
+      input[type="text"], textarea, select, input[type="number"], input[type="date"], input[type="email"]{
         width:100%; max-width:100%; border:1px solid var(--line); background:var(--field-bg);
         border-radius:12px; padding:9px 10px; font:12px 'Comfortaa',sans-serif; outline:none;
         transition: box-shadow .15s ease, border-color .15s ease, background .15s ease;
@@ -34,7 +34,7 @@
       .btn-ghost{ background:transparent; color:var(--ink); }
       .btn-circle{
         width:34px; height:34px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center;
-        background:#f3f8ff; border:1px solid var(--line); color:var(--ink); padding:0; font-size:18px;
+        background:#f3f8ff; border:1px solid var(--line); color:#var(--ink); padding:0; font-size:18px;
       }
       .chip{ font-size:10px; padding:4px 8px; border-radius:999px; border:1px solid var(--line); background:#eef5ff; display:none; }
       .chip.ok{ background:#e6f8ea; border-color:#bfe8c8; color:#1b6b33; }
@@ -65,7 +65,7 @@
       .icon-btn{ width:32px; height:32px; border-radius:10px; border:1px solid var(--line); background:#f3f8ff; display:flex; align-items:center; justify-content:center; font-size:16px; }
       .small-btn{ padding:8px 12px; border-radius:10px; font-size:12px; border:1px solid var(--line); background:#f3f8ff; width:100%; }
 
-      /* Payments */
+      /* Payments / Accordions shared */
       .current-total{ display:flex; flex-direction:column; gap:6px; margin:6px 0 6px; }
       .summary-row-1{ display:grid; grid-template-columns:1fr; gap:8px; margin:6px 0 6px; }
       .summary-row-2{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; margin:6px 0 10px; }
@@ -114,11 +114,24 @@
         <div class="field"><label>Type</label><select id="Type"></select></div>
         <div class="field"><label>Source</label><select id="Source"></select></div>
         <div class="field"><label>Hubspot Link</label><input id="Hubspot Link" type="text" placeholder="https://app.hubspot.com/..."></div>
+
+        <!-- Contacts -->
+        <div class="field" style="margin-top:10px;"><label>Contacts</label></div>
+        <div id="contactList" class="acc-list"></div>
+        <button type="button" class="small-btn" onclick="addContactAcc()">+ Add Contact</button>
       </div>
 
       <!-- Accommodation -->
       <div id="section-accom" class="hidden">
-        <div class="field"><label>Accommodation</label><select id="Accommodation"></select></div>
+        <div class="field"><label>Supplier</label><select id="Supplier"></select></div>
+        <div class="field"><label>Booking Method</label>
+          <select id="Booking Method">
+            <option value=""></option>
+            <option>None</option>
+            <option>TYF to Book</option>
+            <option>Booking Direct</option>
+          </select>
+        </div>
         <div class="field"><label>Board</label><select id="Board"></select></div>
         <div class="field"><label>Extra Information</label><textarea id="Extra Information" placeholder="e.g. Barn / Room numbers"></textarea></div>
         <div class="field"><label>Accommodation Status</label><select id="Accommodation Status"></select></div>
@@ -195,7 +208,6 @@
         </div>
 
         <div class="field"><label>Payments</label></div>
-
         <div id="accList" class="acc-list"></div>
         <button type="button" class="small-btn" style="margin-top:6px;" onclick="addPaymentAcc()">+ Add Payment</button>
       </div>
@@ -227,12 +239,14 @@
       let currentGroupName = originalGroupName || '';
       const MAX_GROUPS   = 16;
       const MAX_PAYMENTS = 7;
+      const MAX_CONTACTS = 10;
 
       const STATUS_OPTIONS = ['Repeat Booking','Requested','Quote Sent','Negotating','Invoice Sent','Terms Signed','Deposit Paid','Balance Paid','Completed','Cancelled'];
       const TYPE_OPTIONS   = ['New','Return'];
       const SOURCE_OPTIONS = ['TYF Website','Existing Client','New Client','Flooglebinder','Marketing'];
       const BOARD_OPTIONS  = ['Room Only','None','Full Board','Half Board','Bed & Breakfast'];
       const ACC_STATUS_OPTS= ['Confirmed','Requested'];
+      const BOOKING_METHOD_OPTS = ['None','TYF to Book','Booking Direct'];
 
       /* Drawer */
       function toggleDrawer(open){ const b=document.getElementById('drawerBackdrop'); const d=document.getElementById('drawer'); if(open){b.style.display='block'; d.style.display='block';} else {b.style.display='none'; d.style.display='none';}}
@@ -253,8 +267,8 @@
         ['Arrival','Departure'].forEach(id=>document.getElementById(id).value='');
         ['Deal Status','Type','Source'].forEach(id=>document.getElementById(id).value='');
         document.getElementById('Hubspot Link').value='';
-        // Accom
-        ['Accommodation','Board','Extra Information','Accommodation Status','Deposit Date','Deposit Amount','Balance Date','Balance Amount']
+        // Accommodation
+        ['Supplier','Booking Method','Board','Extra Information','Accommodation Status','Deposit Date','Deposit Amount','Balance Date','Balance Amount']
         .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
         // Finance
         ['Admin %','Additional Activity Charge (pp)','Other Charges (Description)','Other Charges (Amount)','Discount £ (pp)','Discount %','Free Places','Xero Invoice Number']
@@ -263,6 +277,9 @@
 
         // Subgroups
         rebuildSgRows([['',''],['','']]);
+
+        // Contacts
+        clearContactsUI();
 
         // Payments
         document.getElementById('pay_current_total').value = '';
@@ -288,6 +305,88 @@
       function readCurrentSgValues(){ const vals=[]; for(let i=1;i<=sgCount;i++){ vals.push([document.getElementById('P'+i)?.value||'', document.getElementById('L'+i)?.value||'']); } return vals; }
       function addSubGroupRow(){ if(sgCount>=MAX_GROUPS) return; const vals=readCurrentSgValues(); vals.push(['','']); rebuildSgRows(vals); }
       function removeSubGroupAt(idx){ const vals=readCurrentSgValues().filter((_,i)=>i!==(idx-1)); rebuildSgRows(vals.length?vals:[['','']]); }
+
+      /* -------- Contacts (accordion) -------- */
+      let contactCount = 0;
+
+      function clearContactsUI(){ document.getElementById('contactList').innerHTML=''; contactCount=0; }
+      function renumberContacts(){
+        const items = Array.from(document.querySelectorAll('#contactList .acc-item'));
+        items.forEach((acc,i)=>{ acc.dataset.idx=i+1; acc.querySelector('.idx').textContent = `#${i+1}`; acc._updateSummary && acc._updateSummary(); });
+        contactCount = items.length;
+      }
+
+      function addContactAcc(name='', mobile='', work='', email='', title=''){
+        if (contactCount >= MAX_CONTACTS) return;
+        contactCount++;
+        const idx = contactCount;
+
+        const acc = document.createElement('div');
+        acc.className='acc-item';
+        acc.dataset.idx = idx;
+
+        const head=document.createElement('div');
+        head.className='acc-head';
+        head.innerHTML = `
+          <div class="summary">
+            <span class="idx" style="font-weight:700;font-size:13px;">#${idx}</span>
+            <span class="txt"></span>
+          </div>
+          <button type="button" class="remove">−</button>
+        `;
+        const body=document.createElement('div');
+        body.className='acc-body';
+        body.innerHTML = `
+          <div class="field"><label>Name</label><input name="c_name" type="text"></div>
+          <div class="field"><label>Job Title</label><input name="c_title" type="text"></div>
+          <div class="field"><label>Mobile</label><input name="c_mobile" type="text"></div>
+          <div class="field"><label>Work Phone</label><input name="c_work" type="text"></div>
+          <div class="field"><label>Email</label><input name="c_email" type="email"></div>
+        `;
+
+        acc.appendChild(head); acc.appendChild(body);
+        document.getElementById('contactList').appendChild(acc);
+
+        const rm = head.querySelector('.remove');
+        rm.addEventListener('click', (e)=>{ e.stopPropagation(); acc.remove(); renumberContacts(); });
+
+        head.addEventListener('click', ()=>{ body.classList.toggle('open'); });
+
+        // set values
+        body.querySelector('input[name="c_name"]').value  = name  || '';
+        body.querySelector('input[name="c_mobile"]').value= mobile|| '';
+        body.querySelector('input[name="c_work"]').value  = work  || '';
+        body.querySelector('input[name="c_email"]').value = email || '';
+        body.querySelector('input[name="c_title"]').value = title || '';
+
+        acc._updateSummary = function(){
+          const n = body.querySelector('input[name="c_name"]').value.trim();
+          head.querySelector('.txt').textContent = n ? (' • ' + n) : '';
+        };
+
+        ['input','change','blur'].forEach(ev=>{
+          body.querySelectorAll('input').forEach(el=>el.addEventListener(ev, acc._updateSummary));
+        });
+
+        acc._updateSummary();
+      }
+
+      function readContactsFromUI(){
+        const items = document.querySelectorAll('#contactList .acc-item');
+        const out = [];
+        items.forEach(acc=>{
+          const b = acc.querySelector('.acc-body');
+          const obj = {
+            name:  b.querySelector('input[name="c_name"]').value || '',
+            mobile:b.querySelector('input[name="c_mobile"]').value || '',
+            work:  b.querySelector('input[name="c_work"]').value || '',
+            email: b.querySelector('input[name="c_email"]').value || '',
+            title: b.querySelector('input[name="c_title"]').value || ''
+          };
+          if (obj.name || obj.mobile || obj.work || obj.email || obj.title) out.push(obj);
+        });
+        return out;
+      }
 
       /* -------- Payments (accordion) -------- */
       let payAccCount = 0;
@@ -344,7 +443,6 @@
         acc.appendChild(head); acc.appendChild(body);
         document.getElementById('accList').appendChild(acc);
 
-        // inputs
         const pctEl  = acc.querySelector(`#pay_pct_${idx}`);
         const amtEl  = acc.querySelector(`#pay_amt_${idx}`);
         const dueEl  = acc.querySelector(`#pay_due_${idx}`);
@@ -379,13 +477,11 @@
           if (!isNaN(a) && b>0) pctEl.value=((a/b)*100).toFixed(2);
         }
 
-        // two-way binding + totals + header summary
         pctEl.addEventListener('input', ()=>{ acc.dataset.lastEdited='pct'; pctToAmt(); updateSummary(); updatePaymentTotals(); });
         amtEl.addEventListener('input', ()=>{ acc.dataset.lastEdited='amt'; amtToPct(); updateSummary(); updatePaymentTotals(); });
         dueEl.addEventListener('input', updateSummary);
         paidEl.addEventListener('input', updateSummary);
 
-        // expose for renumber / base change
         acc._updateSummary = updateSummary;
         acc._recalcFromBase = function(){
           if (acc.dataset.lastEdited==='pct') pctToAmt();
@@ -400,7 +496,6 @@
         updateSummary();
       }
 
-      // Renumber only the visible index text; IDs remain stable.
       function renumberAcc(){
         const items = Array.from(document.querySelectorAll('#accList .acc-item'));
         items.forEach((acc, i)=>{ acc.dataset.idx = i+1; acc._updateSummary && acc._updateSummary(); });
@@ -443,7 +538,6 @@
         document.getElementById('sumAmt').textContent      = amt.toFixed(2);
       }
 
-      // Recompute when Current Total changes
       document.addEventListener('input', (e)=>{
         if (e.target && e.target.id === 'pay_current_total') {
           document.querySelectorAll('#accList .acc-item').forEach(acc=>{
@@ -465,16 +559,18 @@
         fillSelect(document.getElementById('Source'), SOURCE_OPTIONS, '');
         fillSelect(document.getElementById('Board'), BOARD_OPTIONS, '');
         fillSelect(document.getElementById('Accommodation Status'), ACC_STATUS_OPTS, '');
+        fillSelect(document.getElementById('Booking Method'), BOOKING_METHOD_OPTS, '');
         document.getElementById('Charge Type').value = 'Peak';
 
-        // Accom list
-        google.script.run.withSuccessHandler(list=>fillSelect(document.getElementById('Accommodation'), list||[], '')).getAccomList();
+        // Supplier list from Accom
+        google.script.run.withSuccessHandler(list=>fillSelect(document.getElementById('Supplier'), list||[], '')).getAccomList();
 
         // Load Info row
         google.script.run.withSuccessHandler(function(obj){
           if (!obj) {
             document.getElementById('Group').value = currentGroupName || '';
             rebuildSgRows([['',''],['','']]);
+            clearContactsUI();
           } else {
             document.getElementById('Group').value       = obj['Group'] || currentGroupName || '';
             document.getElementById('Arrival').value     = isoFromAny(obj['Arrival']);
@@ -484,8 +580,9 @@
             document.getElementById('Source').value      = obj['Source'] || '';
             document.getElementById('Hubspot Link').value= obj['Hubspot Link'] || '';
 
-            // Accommodation
-            document.getElementById('Accommodation').value = obj['Accommodation'] || '';
+            // Supplier / method
+            document.getElementById('Supplier').value = obj['Supplier'] || obj['Accommodation'] || '';
+            document.getElementById('Booking Method').value = obj['Booking Method'] || '';
             document.getElementById('Board').value = obj['Board'] || '';
             document.getElementById('Extra Information').value = obj['Extra Information'] || '';
             document.getElementById('Accommodation Status').value = obj['Accommodation Status'] || '';
@@ -510,9 +607,20 @@
             document.getElementById('Prefix').value = obj['Prefix'] || '';
             const sgPairs=[]; for(let i=1;i<=MAX_GROUPS;i++){ const p=obj['P'+i], l=obj['L'+i]; if((p!==''&&p!=null)||(l!==''&&l!=null)) sgPairs.push([String(p||''),String(l||'')]); }
             rebuildSgRows(sgPairs.length?sgPairs:[['',''],['','']]);
+
+            // Contacts (Contact1 Name … Contact10 Job Title)
+            clearContactsUI();
+            for (let i=1;i<=MAX_CONTACTS;i++){
+              const nm = obj[`Contact${i} Name`]  || obj[`Contact ${i} Name`]  || '';
+              const mb = obj[`Contact${i} Mobile`]|| obj[`Contact ${i} Mobile`]|| '';
+              const wk = obj[`Contact${i} Work Phone`]|| obj[`Contact ${i} Work Phone`]|| '';
+              const em = obj[`Contact${i} Email`] || obj[`Contact ${i} Email`] || '';
+              const jt = obj[`Contact${i} Job Title`] || obj[`Contact ${i} Job Title`] || '';
+              if (nm || mb || wk || em || jt) addContactAcc(nm, mb, wk, em, jt);
+            }
           }
 
-          // Prefer "Total Due"; fallback to other possible keys
+          // Payments base
           const prefer = ['Total Due','Payments Base','Total','Booking Total','Total Amount','Balance Due','Total Due (£)'];
           let base = '';
           for (const k of prefer) if (obj && Object.prototype.hasOwnProperty.call(obj,k)) { base = cleanNumber(obj[k]); if (base!=='') break; }
@@ -520,7 +628,7 @@
           document.getElementById('pay_current_total').value = baseNum ? baseNum.toFixed(2) : '';
           document.getElementById('sumTotalDue').textContent = baseNum.toFixed(2);
 
-          // Load Payments (sorted by server)
+          // Load Payments
           clearPaymentsUI();
           if (currentGroupName) {
             google.script.run.withSuccessHandler(function(res){
@@ -554,7 +662,9 @@
         p['Source']=document.getElementById('Source').value;
         p['Hubspot Link']=document.getElementById('Hubspot Link').value;
 
-        p['Accommodation']=document.getElementById('Accommodation').value;
+        // Supplier + method
+        p['Supplier']=document.getElementById('Supplier').value;
+        p['Booking Method']=document.getElementById('Booking Method').value;
         p['Board']=document.getElementById('Board').value;
         p['Extra Information']=document.getElementById('Extra Information').value;
         p['Accommodation Status']=document.getElementById('Accommodation Status').value;
@@ -579,6 +689,25 @@
 
         p['Prefix']=document.getElementById('Prefix').value||'';
         for(let i=1;i<=sgCount;i++){ p['P'+i]=document.getElementById('P'+i).value; p['L'+i]=document.getElementById('L'+i).value; }
+
+        // Contacts → flatten
+        for (let i=1;i<=MAX_CONTACTS;i++){
+          p[`Contact${i} Name`] = '';
+          p[`Contact${i} Mobile`] = '';
+          p[`Contact${i} Work Phone`] = '';
+          p[`Contact${i} Email`] = '';
+          p[`Contact${i} Job Title`] = '';
+        }
+        const contacts = readContactsFromUI();
+        contacts.slice(0, MAX_CONTACTS).forEach((c, i)=>{
+          const n = i+1;
+          p[`Contact${n} Name`] = c.name || '';
+          p[`Contact${n} Mobile`] = c.mobile || '';
+          p[`Contact${n} Work Phone`] = c.work || '';
+          p[`Contact${n} Email`] = c.email || '';
+          p[`Contact${n} Job Title`] = c.title || '';
+        });
+
         return p;
       }
 
@@ -611,6 +740,7 @@
           const opts = { 'Deal Status':STATUS_OPTIONS, 'Type':TYPE_OPTIONS, 'Source':SOURCE_OPTIONS, 'Board':BOARD_OPTIONS, 'Accommodation Status':ACC_STATUS_OPTS }[id];
           fillSelect(document.getElementById(id), opts, '');
         });
+        fillSelect(document.getElementById('Booking Method'), BOOKING_METHOD_OPTS, '');
         boot();
       })();
     </script>
