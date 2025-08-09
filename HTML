@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root{
+        --ink:#073763; --line:#e8eef6; --bg:#f7fafc; --field-bg:#fbfdff;
+        --focus:#07376322; --radius:14px; --label:10px;
+      }
+      *{ box-sizing:border-box; }
+      body{ font-family:'Comfortaa',system-ui,Arial,sans-serif; color:var(--ink); background:#f7fafc; margin:0; padding:14px; }
+      .card{
+        background:#fff; border-radius:var(--radius); box-shadow:0 6px 20px rgba(7,55,99,.08);
+        padding:16px 14px; border:1px solid var(--line); position:relative; overflow:hidden;
+      }
+      h2{ margin:0 0 8px 0; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+      .title-left{ display:flex; align-items:center; gap:8px; }
+      .meta{ font-size:11px; margin:0; }
+      .meta-small{ font-size:10px; color:#7890a8; font-style:italic; margin:2px 0 6px 0; }
+      .field{ margin:10px 0 12px 0; }
+      .field label{ display:block; font-size:var(--label); font-weight:600; margin-bottom:6px; }
+      input[type="text"], textarea, select, input[type="number"], input[type="date"]{
+        width:100%; max-width:100%; border:1px solid var(--line); background:var(--field-bg);
+        border-radius:12px; padding:9px 10px; font:12px 'Comfortaa',sans-serif; outline:none;
+        transition: box-shadow .15s ease, border-color .15s ease, background .15s ease;
+      }
+      input:focus, textarea:focus, select:focus{ border-color:#b5c8dc; box-shadow:0 0 0 4px var(--focus); background:#fff; }
+      textarea{ min-height:80px; resize:vertical; }
+      .row-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+      .actions{ display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap; }
+      button{ border:none; border-radius:999px; padding:10px 14px; cursor:pointer; font:13px 'Comfortaa',sans-serif; }
+      .btn-primary{ background:var(--ink); color:#fff; box-shadow:0 6px 14px rgba(7,55,99,.18); }
+      .btn-ghost{ background:transparent; color:var(--ink); }
+      .btn-circle{
+        width:34px; height:34px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center;
+        background:#f3f8ff; border:1px solid var(--line); color:var(--ink); padding:0; font-size:18px;
+      }
+      .chip{ font-size:10px; padding:4px 8px; border-radius:999px; border:1px solid var(--line); background:#eef5ff; display:none; }
+      .chip.ok{ background:#e6f8ea; border-color:#bfe8c8; color:#1b6b33; }
+      .chip.err{ background:#fdeeee; border-color:#f6caca; color:#9c1c1c; }
+      .admin-row{ display:flex; align-items:center; justify-content:flex-end; margin-top:6px; }
+      .admin-id{ font-size:9px; color:#9bb0c6; text-align:right; margin-top:4px; }
+
+      /* Drawer */
+      .drawer-backdrop{ position:fixed; inset:0; background:rgba(7,55,99,.08); display:none; }
+      .drawer{
+        position:fixed; top:14px; left:14px; width:240px; max-width:80vw;
+        background:#fff; border:1px solid var(--line); border-radius:16px;
+        box-shadow:0 10px 30px rgba(7,55,99,.15); display:none; overflow:hidden;
+      }
+      .drawer h3{ margin:0; padding:12px 14px; font-size:13px; font-weight:700; border-bottom:1px solid var(--line); }
+      .menu{ list-style:none; margin:0; padding:6px; }
+      .menu li{ margin:2px 0; }
+      .menu button{
+        width:100%; text-align:left; background:#f7fafc; border:1px solid var(--line);
+        padding:8px 10px; border-radius:10px; font:12px 'Comfortaa',sans-serif; color:#073763;
+      }
+      .menu button.active{ background:#eaf3ff; border-color:#cfe0f2; }
+      .hidden{ display:none !important; }
+
+      /* Sub-groups */
+      .sg-grid  { display:grid; grid-template-columns: 28px 1fr 1fr 32px; gap:8px; align-items:center; margin-bottom:6px; }
+      .sg-num{ font-size:12px; width:28px; text-align:center; color:#7890a8; }
+      .icon-btn{ width:32px; height:32px; border-radius:10px; border:1px solid var(--line); background:#f3f8ff; display:flex; align-items:center; justify-content:center; font-size:16px; }
+      .small-btn{ padding:8px 12px; border-radius:10px; font-size:12px; border:1px solid var(--line); background:#f3f8ff; width:100%; }
+
+      /* Payments */
+      .current-total{ display:flex; flex-direction:column; gap:6px; margin:6px 0 6px; }
+      .summary-row-1{ display:grid; grid-template-columns:1fr; gap:8px; margin:6px 0 6px; }
+      .summary-row-2{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; margin:6px 0 10px; }
+      .sum-card{ background:#f3f8ff; border:1px solid var(--line); border-radius:12px; padding:8px 10px; }
+      .sum-label{ font-size:10px; color:#678; margin-bottom:4px; }
+      .sum-value{ font-size:13px; font-weight:700; }
+      .acc-list { display:flex; flex-direction:column; gap:8px; }
+      .acc-item { border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+      .acc-head {
+        padding:8px 10px; background:#f7fafc; display:flex; align-items:center; justify-content:space-between;
+        cursor:pointer; font-size:12px; gap:8px;
+      }
+      .acc-head .summary { display:flex; gap:6px; align-items:center; min-width:0; }
+      .acc-head .summary .idx{ font-weight:700; font-size:13px; }
+      .acc-head .summary .txt{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#355a7b; }
+      .acc-head .remove { width:28px; height:28px; border-radius:8px; border:1px solid var(--line); background:#f3f8ff; display:flex; align-items:center; justify-content:center; }
+      .acc-body { display:none; padding:10px; }
+      .acc-body.open { display:block; }
+      .quad { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>
+        <span class="title-left">
+          <button class="btn-circle" title="Menu" aria-label="Menu" onclick="toggleDrawer(true)">☰</button>
+          <span>Info <span id="badge" class="chip"></span></span>
+        </span>
+        <span style="display:flex; gap:6px;">
+          <button class="btn-circle" title="New group" aria-label="New group" onclick="newGroup()">＋</button>
+          <button class="btn-circle" title="Refresh" aria-label="Refresh" onclick="refreshData()">↻</button>
+        </span>
+      </h2>
+
+      <div class="meta"><strong id="meta-group"></strong></div>
+      <div class="meta meta-small">Edit and save details for this group.</div>
+
+      <!-- Overview -->
+      <div id="section-overview">
+        <div class="field"><label>Group</label><input id="Group" type="text" placeholder="Enter group name"></div>
+        <div class="row-2">
+          <div class="field"><label>Arrival</label><input id="Arrival" type="date"></div>
+          <div class="field"><label>Departure</label><input id="Departure" type="date"></div>
+        </div>
+        <div class="field"><label>Status</label><select id="Deal Status"></select></div>
+        <div class="field"><label>Type</label><select id="Type"></select></div>
+        <div class="field"><label>Source</label><select id="Source"></select></div>
+        <div class="field"><label>Hubspot Link</label><input id="Hubspot Link" type="text" placeholder="https://app.hubspot.com/..."></div>
+      </div>
+
+      <!-- Accommodation -->
+      <div id="section-accom" class="hidden">
+        <div class="field"><label>Accommodation</label><select id="Accommodation"></select></div>
+        <div class="field"><label>Board</label><select id="Board"></select></div>
+        <div class="field"><label>Extra Information</label><textarea id="Extra Information" placeholder="e.g. Barn / Room numbers"></textarea></div>
+        <div class="field"><label>Accommodation Status</label><select id="Accommodation Status"></select></div>
+        <div class="row-2">
+          <div class="field"><label>Deposit Date</label><input id="Deposit Date" type="date"></div>
+          <div class="field"><label>Deposit %</label><input id="Deposit Amount" type="number" step="0.01" placeholder="%"></div>
+        </div>
+        <div class="row-2">
+          <div class="field"><label>Balance Date</label><input id="Balance Date" type="date"></div>
+          <div class="field"><label>Balance %</label><input id="Balance Amount" type="number" step="0.01" placeholder="%"></div>
+        </div>
+      </div>
+
+      <!-- Sub Groups -->
+      <div id="section-subgroups" class="hidden">
+        <div class="field"><label>Prefix</label><input id="Prefix" type="text" placeholder="e.g. A, B, C"></div>
+        <div id="sgContainer"></div>
+        <button type="button" class="small-btn" style="margin-top:6px;" onclick="addSubGroupRow()">+ Add Group</button>
+      </div>
+
+      <!-- Finance -->
+      <div id="section-finance" class="hidden">
+        <div class="field" style="font-weight:700; margin-bottom:2px;">Charges</div>
+        <div class="row-2">
+          <div class="field"><label>Admin Charge %</label><input id="Admin %" type="number" step="0.01"></div>
+          <div class="field"><label>Charge Type</label>
+            <select id="Charge Type"><option value="Peak" selected>Peak</option><option value="Off Peak">Off Peak</option></select>
+          </div>
+        </div>
+        <div class="row-2">
+          <div class="field"><label>Additional Activity Charge</label><input id="Additional Activity Charge (pp)" type="number" step="0.01"></div>
+          <div class="field"><label>Other Charge (Amount)</label><input id="Other Charges (Amount)" type="number" step="0.01"></div>
+        </div>
+        <div class="field"><label>Other Charge (Description)</label><input id="Other Charges (Description)" type="text"></div>
+
+        <div class="field" style="font-weight:700; margin:12px 0 2px;">Discounts</div>
+        <div class="row-2">
+          <div class="field"><label>Discount £ (per person)</label><input id="Discount £ (pp)" type="number" step="0.01"></div>
+          <div class="field"><label>Discount % (per booking)</label><input id="Discount %" type="number" step="0.01"></div>
+        </div>
+        <div class="field"><label>Free Places</label><input id="Free Places" type="number" min="0" step="1"></div>
+
+        <div class="field" style="font-weight:700; margin:12px 0 2px;">Detail</div>
+        <div class="field"><label>Xero Invoice Number</label><input id="Xero Invoice Number" type="text"></div>
+      </div>
+
+      <!-- Payments -->
+      <div id="section-payments" class="hidden">
+        <div class="field"><label>Current Total (£)</label></div>
+        <div class="current-total">
+          <input id="pay_current_total" type="number" step="0.01">
+        </div>
+
+        <div class="field" style="margin-top:2px;"><label>Summary</label></div>
+
+        <!-- Total Due on its own line -->
+        <div class="summary-row-1">
+          <div class="sum-card">
+            <div class="sum-label">Total Due</div>
+            <div class="sum-value" id="sumTotalDue">0.00</div>
+          </div>
+        </div>
+
+        <!-- Wider space for scheduled fields -->
+        <div class="summary-row-2">
+          <div class="sum-card">
+            <div class="sum-label">% Scheduled</div>
+            <div class="sum-value" id="sumPct">0%</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-label">£ Scheduled</div>
+            <div class="sum-value" id="sumAmt">0.00</div>
+          </div>
+        </div>
+
+        <div class="field"><label>Payments</label></div>
+
+        <div id="accList" class="acc-list"></div>
+        <button type="button" class="small-btn" style="margin-top:6px;" onclick="addPaymentAcc()">+ Add Payment</button>
+      </div>
+
+      <div class="actions">
+        <button id="saveBtn" class="btn-primary" onclick="save()">Save</button>
+        <span id="saveChip" class="chip">Saved</span>
+        <button class="btn-ghost" onclick="google.script.host.close()">Close</button>
+      </div>
+
+      <div class="admin-row"><div id="adminId" class="admin-id"></div></div>
+    </div>
+
+    <!-- Drawer -->
+    <div id="drawerBackdrop" class="drawer-backdrop" onclick="toggleDrawer(false)"></div>
+    <div id="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Sections">
+      <h3>Sections</h3>
+      <ul class="menu">
+        <li><button id="m-overview"  class="active" onclick="showSection('overview')">Overview</button></li>
+        <li><button id="m-accom"                 onclick="showSection('accom')">Accommodation</button></li>
+        <li><button id="m-subgroups"             onclick="showSection('subgroups')">Sub Groups</button></li>
+        <li><button id="m-finance"               onclick="showSection('finance')">Finance</button></li>
+        <li><button id="m-payments"              onclick="showSection('payments')">Payments</button></li>
+      </ul>
+    </div>
+
+    <script>
+      const originalGroupName = "<?= groupName ?>";
+      let currentGroupName = originalGroupName || '';
+      const MAX_GROUPS   = 16;
+      const MAX_PAYMENTS = 7;
+
+      const STATUS_OPTIONS = ['Repeat Booking','Requested','Quote Sent','Negotating','Invoice Sent','Terms Signed','Deposit Paid','Balance Paid','Completed','Cancelled'];
+      const TYPE_OPTIONS   = ['New','Return'];
+      const SOURCE_OPTIONS = ['TYF Website','Existing Client','New Client','Flooglebinder','Marketing'];
+      const BOARD_OPTIONS  = ['Room Only','None','Full Board','Half Board','Bed & Breakfast'];
+      const ACC_STATUS_OPTS= ['Confirmed','Requested'];
+
+      /* Drawer */
+      function toggleDrawer(open){ const b=document.getElementById('drawerBackdrop'); const d=document.getElementById('drawer'); if(open){b.style.display='block'; d.style.display='block';} else {b.style.display='none'; d.style.display='none';}}
+      function showSection(id){ ['overview','accom','subgroups','finance','payments'].forEach(sec=>{ document.getElementById('section-'+sec).classList.toggle('hidden', sec!==id); document.getElementById('m-'+sec).classList.toggle('active', sec===id); }); toggleDrawer(false); }
+
+      /* Helpers */
+      function showChip(id, text, kind){ const el=document.getElementById(id); el.textContent=text; el.className='chip '+(kind||''); el.style.display='inline-block'; setTimeout(()=>{ el.style.display='none'; }, 1200); }
+      function pad2(n){ return String(n).padStart(2,'0'); }
+      function isoFromAny(v){ if(!v) return ''; if(v instanceof Date) return `${v.getFullYear()}-${pad2(v.getMonth()+1)}-${pad2(v.getDate())}`; const s=String(v).trim(); if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); if(m){const y=m[3].length===2?('20'+m[3]):m[3]; return `${y}-${pad2(m[2])}-${pad2(m[1])}`;} const d=new Date(s); return isNaN(d.getTime())?'':isoFromAny(d); }
+      function dmyFromIso(iso){ const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m?`${m[3]}/${m[2]}/${m[1].slice(-2)}`:String(iso||''); }
+      function dMonFromIso(iso){ const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); if(!m) return ''; const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return `${parseInt(m[3],10)} ${months[parseInt(m[2],10)-1]}`; }
+      function cleanNumber(v){ const n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?'':n; }
+      function fillSelect(el, options, selected){ el.innerHTML=''; el.appendChild(new Option('', '')); options.forEach(o=>el.appendChild(new Option(o,o))); if(selected && options.includes(selected)) el.value=selected; }
+
+      /* New group (clear) */
+      function newGroup(){
+        currentGroupName=''; document.getElementById('Group').value='';
+        ['Arrival','Departure'].forEach(id=>document.getElementById(id).value='');
+        ['Deal Status','Type','Source'].forEach(id=>document.getElementById(id).value='');
+        document.getElementById('Hubspot Link').value='';
+        // Accom
+        ['Accommodation','Board','Extra Information','Accommodation Status','Deposit Date','Deposit Amount','Balance Date','Balance Amount']
+        .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+        // Finance
+        ['Admin %','Additional Activity Charge (pp)','Other Charges (Description)','Other Charges (Amount)','Discount £ (pp)','Discount %','Free Places','Xero Invoice Number']
+        .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+        document.getElementById('Charge Type').value='Peak';
+
+        // Subgroups
+        rebuildSgRows([['',''],['','']]);
+
+        // Payments
+        document.getElementById('pay_current_total').value = '';
+        document.getElementById('sumTotalDue').textContent = '0.00';
+        document.getElementById('sumPct').textContent = '0%';
+        document.getElementById('sumAmt').textContent = '0.00';
+        clearPaymentsUI();
+        document.getElementById('meta-group').textContent='(new)'; const badge=document.getElementById('badge'); badge.style.display='inline-block'; badge.textContent='NEW';
+      }
+
+      /* -------- Sub-groups -------- */
+      let sgCount=0;
+      function buildSubGroupRow(i,pVal='',lVal=''){
+        const row=document.createElement('div'); row.className='sg-grid'; row.dataset.idx=i;
+        row.innerHTML = `
+          <div class="sg-num">#${i}</div>
+          <input id="P${i}" type="number" min="0" step="1" placeholder="P" value="${pVal}">
+          <input id="L${i}" type="number" min="0" step="1" placeholder="L" value="${lVal}">
+          <button class="icon-btn" title="Remove" onclick="removeSubGroupAt(${i})">−</button>`;
+        return row;
+      }
+      function rebuildSgRows(values){ const c=document.getElementById('sgContainer'); c.innerHTML=''; sgCount=Math.min(values.length, MAX_GROUPS); for(let i=1;i<=sgCount;i++){ const [p,l]=values[i-1]||['','']; c.appendChild(buildSubGroupRow(i,p,l)); } }
+      function readCurrentSgValues(){ const vals=[]; for(let i=1;i<=sgCount;i++){ vals.push([document.getElementById('P'+i)?.value||'', document.getElementById('L'+i)?.value||'']); } return vals; }
+      function addSubGroupRow(){ if(sgCount>=MAX_GROUPS) return; const vals=readCurrentSgValues(); vals.push(['','']); rebuildSgRows(vals); }
+      function removeSubGroupAt(idx){ const vals=readCurrentSgValues().filter((_,i)=>i!==(idx-1)); rebuildSgRows(vals.length?vals:[['','']]); }
+
+      /* -------- Payments (accordion) -------- */
+      let payAccCount = 0;
+      function currentTotal(){ const v=parseFloat(document.getElementById('pay_current_total').value); return isNaN(v)?0:v; }
+
+      function clearPaymentsUI(){ document.getElementById('accList').innerHTML=''; payAccCount = 0; updatePaymentTotals(); }
+
+      function addPaymentAcc(pct='', amt='', dueISO='', paidISO=''){
+        if (payAccCount >= MAX_PAYMENTS) return;
+        payAccCount++;
+        const idx = payAccCount;
+        const acc = document.createElement('div');
+        acc.className = 'acc-item';
+        acc.dataset.idx = idx;
+        acc.dataset.lastEdited = ''; // 'pct' | 'amt'
+
+        const head = document.createElement('div');
+        head.className = 'acc-head';
+        const sum = document.createElement('div');
+        sum.className = 'summary';
+        sum.innerHTML = `<span class="idx" style="font-weight:700;font-size:13px;">#${idx}</span><span class="txt"></span>`;
+        const remove = document.createElement('button');
+        remove.className = 'remove'; remove.type='button'; remove.innerText = '−';
+        remove.addEventListener('click', (e)=>{ e.stopPropagation(); acc.remove(); renumberAcc(); updatePaymentTotals(); });
+
+        head.appendChild(sum); head.appendChild(remove);
+
+        const body = document.createElement('div');
+        body.className = 'acc-body'; // closed by default
+
+        body.innerHTML = `
+          <div class="quad">
+            <div class="field">
+              <label>% Amount</label>
+              <input id="pay_pct_${idx}" type="number" step="0.01" min="0" />
+            </div>
+            <div class="field">
+              <label>£ Amount</label>
+              <input id="pay_amt_${idx}" type="number" step="0.01" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Due Date</label>
+            <input id="pay_due_${idx}" type="date" />
+          </div>
+          <div class="field">
+            <label>Paid Date</label>
+            <input id="pay_paid_${idx}" type="date" />
+          </div>
+        `;
+
+        head.addEventListener('click', ()=>{ body.classList.toggle('open'); });
+
+        acc.appendChild(head); acc.appendChild(body);
+        document.getElementById('accList').appendChild(acc);
+
+        // inputs
+        const pctEl  = acc.querySelector(`#pay_pct_${idx}`);
+        const amtEl  = acc.querySelector(`#pay_amt_${idx}`);
+        const dueEl  = acc.querySelector(`#pay_due_${idx}`);
+        const paidEl = acc.querySelector(`#pay_paid_${idx}`);
+        const txtEl  = sum.querySelector('.txt');
+
+        pctEl.value  = pct!=='' ? pct : '';
+        amtEl.value  = amt!=='' ? Number(amt).toFixed(2) : '';
+        dueEl.value  = dueISO || '';
+        paidEl.value = paidISO || '';
+
+        function updateSummary(){
+          const p = parseFloat(pctEl.value);
+          const a = parseFloat(amtEl.value);
+          const d = dueEl.value ? dMonFromIso(dueEl.value) : '';
+          const parts = [];
+          if (!isNaN(p)) parts.push(`${Math.round(p)}%`);
+          if (!isNaN(a)) parts.push(`(£${a.toFixed(2)})`);
+          let text = '';
+          if (parts.length) text = ' • ' + parts.join(' ');
+          if (d) text += ` • ${d}`;
+          sum.querySelector('.idx').textContent = `#${acc.dataset.idx}`;
+          txtEl.textContent = text;
+        }
+
+        function pctToAmt(){
+          const b=currentTotal(), p=parseFloat(pctEl.value);
+          if (!isNaN(p) && b>0) amtEl.value=(b*p/100).toFixed(2);
+        }
+        function amtToPct(){
+          const b=currentTotal(), a=parseFloat(amtEl.value);
+          if (!isNaN(a) && b>0) pctEl.value=((a/b)*100).toFixed(2);
+        }
+
+        // two-way binding + totals + header summary
+        pctEl.addEventListener('input', ()=>{ acc.dataset.lastEdited='pct'; pctToAmt(); updateSummary(); updatePaymentTotals(); });
+        amtEl.addEventListener('input', ()=>{ acc.dataset.lastEdited='amt'; amtToPct(); updateSummary(); updatePaymentTotals(); });
+        dueEl.addEventListener('input', updateSummary);
+        paidEl.addEventListener('input', updateSummary);
+
+        // expose for renumber / base change
+        acc._updateSummary = updateSummary;
+        acc._recalcFromBase = function(){
+          if (acc.dataset.lastEdited==='pct') pctToAmt();
+          else if (acc.dataset.lastEdited==='amt') amtToPct();
+          else {
+            if (pctEl.value !== '') pctToAmt();
+            else if (amtEl.value !== '') amtToPct();
+          }
+          updateSummary();
+        };
+
+        updateSummary();
+      }
+
+      // Renumber only the visible index text; IDs remain stable.
+      function renumberAcc(){
+        const items = Array.from(document.querySelectorAll('#accList .acc-item'));
+        items.forEach((acc, i)=>{ acc.dataset.idx = i+1; acc._updateSummary && acc._updateSummary(); });
+        payAccCount = items.length;
+      }
+
+      function readPaymentsFromUI(){
+        const vals = [];
+        const items = document.querySelectorAll('#accList .acc-item');
+        items.forEach(acc=>{
+          const pctEl  = acc.querySelector('input[id^="pay_pct_"]');
+          const amtEl  = acc.querySelector('input[id^="pay_amt_"]');
+          const dueEl  = acc.querySelector('input[id^="pay_due_"]');
+          const paidEl = acc.querySelector('input[id^="pay_paid_"]');
+          const pct = pctEl?.value ?? '';
+          const amt = amtEl?.value ?? '';
+          const due = dueEl?.value ?? '';
+          const paid = paidEl?.value ?? '';
+          if (pct!=='' || amt!=='' || due!=='' || paid!=='') {
+            vals.push({ percent:pct, amount:amt, dateDue:due, datePaid:paid });
+          }
+        });
+        return vals;
+      }
+
+      function updatePaymentTotals(){
+        let pct=0, amt=0;
+        const items = document.querySelectorAll('#accList .acc-item');
+        items.forEach(acc=>{
+          const pctEl = acc.querySelector('input[id^="pay_pct_"]');
+          const amtEl = acc.querySelector('input[id^="pay_amt_"]');
+          const p = parseFloat(pctEl?.value);
+          const a = parseFloat(amtEl?.value);
+          if (!isNaN(p)) pct += p;
+          if (!isNaN(a)) amt += a;
+        });
+        const base = currentTotal();
+        document.getElementById('sumTotalDue').textContent = base ? base.toFixed(2) : '0.00';
+        document.getElementById('sumPct').textContent      = `${Math.round(pct)}%`;
+        document.getElementById('sumAmt').textContent      = amt.toFixed(2);
+      }
+
+      // Recompute when Current Total changes
+      document.addEventListener('input', (e)=>{
+        if (e.target && e.target.id === 'pay_current_total') {
+          document.querySelectorAll('#accList .acc-item').forEach(acc=>{
+            acc._recalcFromBase && acc._recalcFromBase();
+          });
+          updatePaymentTotals();
+        }
+      });
+
+      /* -------- Data IO -------- */
+      function boot(){
+        document.getElementById('meta-group').textContent = currentGroupName || '(new)';
+        document.getElementById('adminId').textContent = currentGroupName ? ('Group: ' + currentGroupName) : '';
+        const badge = document.getElementById('badge'); badge.style.display='inline-block'; badge.textContent = currentGroupName ? 'EDIT' : 'NEW';
+
+        // init selects
+        fillSelect(document.getElementById('Deal Status'), STATUS_OPTIONS, '');
+        fillSelect(document.getElementById('Type'), TYPE_OPTIONS, '');
+        fillSelect(document.getElementById('Source'), SOURCE_OPTIONS, '');
+        fillSelect(document.getElementById('Board'), BOARD_OPTIONS, '');
+        fillSelect(document.getElementById('Accommodation Status'), ACC_STATUS_OPTS, '');
+        document.getElementById('Charge Type').value = 'Peak';
+
+        // Accom list
+        google.script.run.withSuccessHandler(list=>fillSelect(document.getElementById('Accommodation'), list||[], '')).getAccomList();
+
+        // Load Info row
+        google.script.run.withSuccessHandler(function(obj){
+          if (!obj) {
+            document.getElementById('Group').value = currentGroupName || '';
+            rebuildSgRows([['',''],['','']]);
+          } else {
+            document.getElementById('Group').value       = obj['Group'] || currentGroupName || '';
+            document.getElementById('Arrival').value     = isoFromAny(obj['Arrival']);
+            document.getElementById('Departure').value   = isoFromAny(obj['Departure']);
+            document.getElementById('Deal Status').value = obj['Deal Status'] || '';
+            document.getElementById('Type').value        = obj['Type'] || '';
+            document.getElementById('Source').value      = obj['Source'] || '';
+            document.getElementById('Hubspot Link').value= obj['Hubspot Link'] || '';
+
+            // Accommodation
+            document.getElementById('Accommodation').value = obj['Accommodation'] || '';
+            document.getElementById('Board').value = obj['Board'] || '';
+            document.getElementById('Extra Information').value = obj['Extra Information'] || '';
+            document.getElementById('Accommodation Status').value = obj['Accommodation Status'] || '';
+            document.getElementById('Deposit Date').value = isoFromAny(obj['Deposit Date']);
+            document.getElementById('Deposit Amount').value = cleanNumber(obj['Deposit Amount']);
+            document.getElementById('Balance Date').value = isoFromAny(obj['Balance Date']);
+            document.getElementById('Balance Amount').value = cleanNumber(obj['Balance Amount']);
+
+            // Finance
+            document.getElementById('Admin %').value = cleanNumber(obj['Admin %']);
+            document.getElementById('Additional Activity Charge (pp)').value = cleanNumber(obj['Additional Activity Charge (pp)']);
+            document.getElementById('Other Charges (Description)').value = obj['Other Charges (Description)'] || obj['Other Charges Description'] || '';
+            document.getElementById('Other Charges (Amount)').value = cleanNumber(obj['Other Charges (Amount)'] ?? obj['Other Charges Amount']);
+            document.getElementById('Discount £ (pp)').value = cleanNumber(obj['Discount £ (pp)']);
+            document.getElementById('Discount %').value = cleanNumber(obj['Discount %']);
+            document.getElementById('Free Places').value = cleanNumber(obj['Free Places']);
+            document.getElementById('Xero Invoice Number').value = obj['Xero Invoice Number'] || '';
+            const offPeak = (String(obj['Off Peak']).toLowerCase()==='true') || (obj['Off Peak']===true);
+            document.getElementById('Charge Type').value = offPeak ? 'Off Peak' : 'Peak';
+
+            // Sub groups
+            document.getElementById('Prefix').value = obj['Prefix'] || '';
+            const sgPairs=[]; for(let i=1;i<=MAX_GROUPS;i++){ const p=obj['P'+i], l=obj['L'+i]; if((p!==''&&p!=null)||(l!==''&&l!=null)) sgPairs.push([String(p||''),String(l||'')]); }
+            rebuildSgRows(sgPairs.length?sgPairs:[['',''],['','']]);
+          }
+
+          // Prefer "Total Due"; fallback to other possible keys
+          const prefer = ['Total Due','Payments Base','Total','Booking Total','Total Amount','Balance Due','Total Due (£)'];
+          let base = '';
+          for (const k of prefer) if (obj && Object.prototype.hasOwnProperty.call(obj,k)) { base = cleanNumber(obj[k]); if (base!=='') break; }
+          const baseNum = base!=='' ? Number(base) : 0;
+          document.getElementById('pay_current_total').value = baseNum ? baseNum.toFixed(2) : '';
+          document.getElementById('sumTotalDue').textContent = baseNum.toFixed(2);
+
+          // Load Payments (sorted by server)
+          clearPaymentsUI();
+          if (currentGroupName) {
+            google.script.run.withSuccessHandler(function(res){
+              const lines = (res && res.lines) ? res.lines : [];
+              if (lines.length === 0) { updatePaymentTotals(); return; }
+              lines.forEach(x=>{
+                addPaymentAcc(
+                  (x.percent===''||x.percent==null)?'':Number(x.percent),
+                  (x.amount ===''||x.amount ==null)?'':Number(x.amount).toFixed(2),
+                  isoFromAny(x.dateDue),
+                  isoFromAny(x.datePaid)
+                );
+              });
+              updatePaymentTotals();
+            }).getPayments(currentGroupName);
+          } else {
+            updatePaymentTotals();
+          }
+        }).getInfoData(currentGroupName);
+      }
+
+      function refreshData(){ currentGroupName = document.getElementById('Group').value || currentGroupName; boot(); showChip('saveChip','Row refreshed','ok'); }
+
+      function gatherPayload(){
+        const p={};
+        p['Group']=document.getElementById('Group').value||'';
+        p['Arrival']=dmyFromIso(document.getElementById('Arrival').value);
+        p['Departure']=dmyFromIso(document.getElementById('Departure').value);
+        p['Deal Status']=document.getElementById('Deal Status').value;
+        p['Type']=document.getElementById('Type').value;
+        p['Source']=document.getElementById('Source').value;
+        p['Hubspot Link']=document.getElementById('Hubspot Link').value;
+
+        p['Accommodation']=document.getElementById('Accommodation').value;
+        p['Board']=document.getElementById('Board').value;
+        p['Extra Information']=document.getElementById('Extra Information').value;
+        p['Accommodation Status']=document.getElementById('Accommodation Status').value;
+        p['Deposit Date']=dmyFromIso(document.getElementById('Deposit Date').value);
+        p['Deposit Amount']=document.getElementById('Deposit Amount').value;
+        p['Balance Date']=dmyFromIso(document.getElementById('Balance Date').value);
+        p['Balance Amount']=document.getElementById('Balance Amount').value;
+
+        p['Admin %']=document.getElementById('Admin %').value;
+        p['Additional Activity Charge (pp)']=document.getElementById('Additional Activity Charge (pp)').value;
+        p['Other Charges (Description)']=document.getElementById('Other Charges (Description)').value;
+        p['Other Charges (Amount)']=document.getElementById('Other Charges (Amount)').value;
+        p['Discount £ (pp)']=document.getElementById('Discount £ (pp)').value;
+        p['Discount %']=document.getElementById('Discount %').value;
+        p['Free Places']=document.getElementById('Free Places').value;
+        p['Xero Invoice Number']=document.getElementById('Xero Invoice Number').value;
+        p['Off Peak']=(document.getElementById('Charge Type').value==='Off Peak');
+
+        // Write Current Total back to Info as "Total Due"
+        const baseNum = parseFloat(document.getElementById('pay_current_total').value);
+        if (!isNaN(baseNum)) p['Total Due'] = baseNum;
+
+        p['Prefix']=document.getElementById('Prefix').value||'';
+        for(let i=1;i<=sgCount;i++){ p['P'+i]=document.getElementById('P'+i).value; p['L'+i]=document.getElementById('L'+i).value; }
+        return p;
+      }
+
+      function gatherPayments(){ return readPaymentsFromUI(); }
+
+      function save(){
+        const btn=document.getElementById('saveBtn'); btn.disabled=true; btn.textContent='Saving…';
+        const updated=gatherPayload(); const newName=updated['Group'];
+
+        google.script.run.withSuccessHandler(function(res){
+          if(!res||!res.ok){ btn.disabled=false; btn.textContent='Save'; showChip('saveChip',(res&&res.message)?res.message:'Save failed','err'); return; }
+          currentGroupName = newName || currentGroupName;
+          const payments=gatherPayments();
+          if(currentGroupName){
+            google.script.run.withSuccessHandler(function(pres){
+              btn.disabled=false; btn.textContent='Save';
+              if(pres&&pres.ok){ document.getElementById('meta-group').textContent=currentGroupName||'(new)'; showChip('saveChip','Saved ✓','ok'); }
+              else { showChip('saveChip',(pres&&pres.message)?pres.message:'Payments save failed','err'); }
+            }).savePayments(currentGroupName, payments);
+          } else {
+            btn.disabled=false; btn.textContent='Save'; showChip('saveChip','Saved ✓','ok');
+          }
+        }).saveInfoData(originalGroupName, updated);
+      }
+
+      // Boot
+      (function init(){
+        document.getElementById('m-overview').classList.add('active');
+        ['Deal Status','Type','Source','Board','Accommodation Status'].forEach(id=>{
+          const opts = { 'Deal Status':STATUS_OPTIONS, 'Type':TYPE_OPTIONS, 'Source':SOURCE_OPTIONS, 'Board':BOARD_OPTIONS, 'Accommodation Status':ACC_STATUS_OPTS }[id];
+          fillSelect(document.getElementById(id), opts, '');
+        });
+        boot();
+      })();
+    </script>
+  </body>
+</html>
