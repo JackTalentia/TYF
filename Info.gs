@@ -1,4 +1,3 @@
-SIDEBAR
 /***** =========================
  *  Info Sidebar – Code.gs
  *  ========================= *****/
@@ -141,7 +140,7 @@ function saveInfoData(originalName, updated) {
   }
 }
 
-/* ---------- Accommodation list ---------- */
+/* ---------- Supplier list from Accom ---------- */
 function getAccomList() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sh = ss.getSheetByName('Accom');
@@ -161,7 +160,6 @@ function _ensurePaymentsSheet_() {
     sh.getRange(1,1,1,5).setValues([['Group','Percent','Amount','Date Due','Date Paid']]);
     sh.getRange(1,1,1,5).setFontWeight('bold');
   } else {
-    // ensure required headers
     const head = _headers_(sh);
     const need = ['Group','Percent','Amount','Date Due','Date Paid'];
     for (const h of need) {
@@ -174,7 +172,6 @@ function _ensurePaymentsSheet_() {
   return sh;
 }
 
-/** Return {lines:[{percent, amount, dateDue, datePaid}...]} filtered by group, sorted by Date Due asc */
 function getPayments(groupName) {
   const sh = _ensurePaymentsSheet_();
   const lastRow = sh.getLastRow(), lastCol = sh.getLastColumn();
@@ -209,7 +206,6 @@ function getPayments(groupName) {
   return { lines };
 }
 
-/** Replace all payment rows for group with new lines (sorted server-side by Date Due). */
 function savePayments(groupName, lines) {
   try {
     const name = String(groupName||'').trim();
