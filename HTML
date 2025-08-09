@@ -2,6 +2,7 @@
 <html>
   <head>
     <base target="_top">
+    <meta charset="utf-8">
     <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
       :root{
@@ -85,10 +86,15 @@
       .acc-body { display:none; padding:10px; }
       .acc-body.open { display:block; }
       .quad { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
+
+      /* Loading bar */
+      .bar{height:3px;background:#e8eef6;position:absolute;left:0;right:0;top:0;overflow:hidden;}
+      .bar>span{position:absolute;left:0;top:0;height:100%;width:0%;background:#073763;transition:width .25s ease;}
     </style>
   </head>
   <body>
     <div class="card">
+      <div class="bar"><span id="prog"></span></div>
       <h2>
         <span class="title-left">
           <button class="btn-circle" title="Menu" aria-label="Menu" onclick="toggleDrawer(true)">☰</button>
@@ -187,7 +193,6 @@
 
         <div class="field" style="margin-top:2px;"><label>Summary</label></div>
 
-        <!-- Total Due on its own line -->
         <div class="summary-row-1">
           <div class="sum-card">
             <div class="sum-label">Total Due</div>
@@ -195,7 +200,6 @@
           </div>
         </div>
 
-        <!-- Wider space for scheduled fields -->
         <div class="summary-row-2">
           <div class="sum-card">
             <div class="sum-label">% Scheduled</div>
@@ -236,6 +240,7 @@
 
     <script>
       const originalGroupName = "<?= groupName ?>";
+      const logisticsRow = Number("<?= logRow ?>") || 0;
       let currentGroupName = originalGroupName || '';
       const MAX_GROUPS   = 16;
       const MAX_PAYMENTS = 7;
@@ -245,8 +250,12 @@
       const TYPE_OPTIONS   = ['New','Return'];
       const SOURCE_OPTIONS = ['TYF Website','Existing Client','New Client','Flooglebinder','Marketing'];
       const BOARD_OPTIONS  = ['Room Only','None','Full Board','Half Board','Bed & Breakfast'];
-      const ACC_STATUS_OPTS= ['Confirmed','Requested'];
+      const ACC_STATUS_OPTS= ['Confirmed','Requested','N/A'];
       const BOOKING_METHOD_OPTS = ['None','TYF to Book','Booking Direct'];
+
+      const LOG = (...a)=>console.log('[InfoUI]', ...a);
+      const WARN = (...a)=>console.warn('[InfoUI]', ...a);
+      function step(p){ document.getElementById('prog').style.width = p + '%'; }
 
       /* Drawer */
       function toggleDrawer(open){ const b=document.getElementById('drawerBackdrop'); const d=document.getElementById('drawer'); if(open){b.style.display='block'; d.style.display='block';} else {b.style.display='none'; d.style.display='none';}}
@@ -549,6 +558,8 @@
 
       /* -------- Data IO -------- */
       function boot(){
+        LOG('boot start', {originalGroupName, logisticsRow});
+        step(5);
         document.getElementById('meta-group').textContent = currentGroupName || '(new)';
         document.getElementById('adminId').textContent = currentGroupName ? ('Group: ' + currentGroupName) : '';
         const badge = document.getElementById('badge'); badge.style.display='inline-block'; badge.textContent = currentGroupName ? 'EDIT' : 'NEW';
@@ -563,44 +574,53 @@
         document.getElementById('Charge Type').value = 'Peak';
 
         // Supplier list from Accom
-        google.script.run.withSuccessHandler(list=>fillSelect(document.getElementById('Supplier'), list||[], '')).getAccomList();
+        google.script.run.withSuccessHandler(list=>{
+          LOG('Accom list size:', (list||[]).length);
+          fillSelect(document.getElementById('Supplier'), list||[], '');
+        }).getAccomList();
 
-        // Load Info row
-        google.script.run.withSuccessHandler(function(obj){
-          if (!obj) {
-            document.getElementById('Group').value = currentGroupName || '';
-            rebuildSgRows([['',''],['','']]);
-            clearContactsUI();
-          } else {
+        step(15);
+
+        // Resolve Info row from Logistics!AA, fallback to name
+        google.script.run.withSuccessHandler(function(infoRow){
+          LOG('Resolved Info row', infoRow);
+          step(35);
+          if (!infoRow || infoRow < 2) { step(100); return; }
+
+          // Load Info row -> object
+          google.script.run.withSuccessHandler(function(obj){
+            if (!obj || obj.__empty || obj.__error) { LOG('Info object empty/err', obj); step(100); return; }
+
+            // Fill UI from object (already ISO/number normalized)
             document.getElementById('Group').value       = obj['Group'] || currentGroupName || '';
-            document.getElementById('Arrival').value     = isoFromAny(obj['Arrival']);
-            document.getElementById('Departure').value   = isoFromAny(obj['Departure']);
+            document.getElementById('Arrival').value     = obj['Arrival'] || '';
+            document.getElementById('Departure').value   = obj['Departure'] || '';
             document.getElementById('Deal Status').value = obj['Deal Status'] || '';
             document.getElementById('Type').value        = obj['Type'] || '';
             document.getElementById('Source').value      = obj['Source'] || '';
             document.getElementById('Hubspot Link').value= obj['Hubspot Link'] || '';
 
             // Supplier / method
-            document.getElementById('Supplier').value = obj['Supplier'] || obj['Accommodation'] || '';
+            document.getElementById('Supplier').value = obj['Accommodation'] || '';
             document.getElementById('Booking Method').value = obj['Booking Method'] || '';
             document.getElementById('Board').value = obj['Board'] || '';
             document.getElementById('Extra Information').value = obj['Extra Information'] || '';
             document.getElementById('Accommodation Status').value = obj['Accommodation Status'] || '';
-            document.getElementById('Deposit Date').value = isoFromAny(obj['Deposit Date']);
-            document.getElementById('Deposit Amount').value = cleanNumber(obj['Deposit Amount']);
-            document.getElementById('Balance Date').value = isoFromAny(obj['Balance Date']);
-            document.getElementById('Balance Amount').value = cleanNumber(obj['Balance Amount']);
+            document.getElementById('Deposit Date').value = obj['Deposit Date'] || '';
+            document.getElementById('Deposit Amount').value = obj['Deposit %'] || '';
+            document.getElementById('Balance Date').value = obj['Balance Date'] || '';
+            document.getElementById('Balance Amount').value = obj['Balance %'] || '';
 
             // Finance
-            document.getElementById('Admin %').value = cleanNumber(obj['Admin %']);
-            document.getElementById('Additional Activity Charge (pp)').value = cleanNumber(obj['Additional Activity Charge (pp)']);
-            document.getElementById('Other Charges (Description)').value = obj['Other Charges (Description)'] || obj['Other Charges Description'] || '';
-            document.getElementById('Other Charges (Amount)').value = cleanNumber(obj['Other Charges (Amount)'] ?? obj['Other Charges Amount']);
-            document.getElementById('Discount £ (pp)').value = cleanNumber(obj['Discount £ (pp)']);
-            document.getElementById('Discount %').value = cleanNumber(obj['Discount %']);
-            document.getElementById('Free Places').value = cleanNumber(obj['Free Places']);
-            document.getElementById('Xero Invoice Number').value = obj['Xero Invoice Number'] || '';
-            const offPeak = (String(obj['Off Peak']).toLowerCase()==='true') || (obj['Off Peak']===true);
+            document.getElementById('Admin %').value = obj['Admin Charge %'] || '';
+            document.getElementById('Additional Activity Charge (pp)').value = obj['Additional Activity Charge'] || '';
+            document.getElementById('Other Charges (Description)').value = obj['Other Charges Description'] || '';
+            document.getElementById('Other Charges (Amount)').value = obj['Other Charges Amount'] || '';
+            document.getElementById('Discount £ (pp)').value = obj['Discount £ (per person)'] || '';
+            document.getElementById('Discount %').value = obj['Discount % (per booking)'] || '';
+            document.getElementById('Free Places').value = obj['Free Places'] || '';
+            document.getElementById('Xero Invoice Number').value = obj['Xero Invoice'] || '';
+            const offPeak = (String(obj['Charge Type']).toLowerCase()==='off peak');
             document.getElementById('Charge Type').value = offPeak ? 'Off Peak' : 'Peak';
 
             // Sub groups
@@ -608,46 +628,40 @@
             const sgPairs=[]; for(let i=1;i<=MAX_GROUPS;i++){ const p=obj['P'+i], l=obj['L'+i]; if((p!==''&&p!=null)||(l!==''&&l!=null)) sgPairs.push([String(p||''),String(l||'')]); }
             rebuildSgRows(sgPairs.length?sgPairs:[['',''],['','']]);
 
-            // Contacts (Contact1 Name … Contact10 Job Title)
-            clearContactsUI();
-            for (let i=1;i<=MAX_CONTACTS;i++){
-              const nm = obj[`Contact${i} Name`]  || obj[`Contact ${i} Name`]  || '';
-              const mb = obj[`Contact${i} Mobile`]|| obj[`Contact ${i} Mobile`]|| '';
-              const wk = obj[`Contact${i} Work Phone`]|| obj[`Contact ${i} Work Phone`]|| '';
-              const em = obj[`Contact${i} Email`] || obj[`Contact ${i} Email`] || '';
-              const jt = obj[`Contact${i} Job Title`] || obj[`Contact ${i} Job Title`] || '';
-              if (nm || mb || wk || em || jt) addContactAcc(nm, mb, wk, em, jt);
-            }
-          }
+            step(65);
 
-          // Payments base
-          const prefer = ['Total Due','Payments Base','Total','Booking Total','Total Amount','Balance Due','Total Due (£)'];
-          let base = '';
-          for (const k of prefer) if (obj && Object.prototype.hasOwnProperty.call(obj,k)) { base = cleanNumber(obj[k]); if (base!=='') break; }
-          const baseNum = base!=='' ? Number(base) : 0;
-          document.getElementById('pay_current_total').value = baseNum ? baseNum.toFixed(2) : '';
-          document.getElementById('sumTotalDue').textContent = baseNum.toFixed(2);
+            // Payments base (try Total Due sheet, else infer)
+            google.script.run.withSuccessHandler(function(totalDue){
+              const prefer = ['Total Due','Payments Base','Total','Booking Total','Total Amount','Balance Due','Total Due (£)'];
+              let base = ''; if (totalDue) base = totalDue;
+              const baseNum = base!=='' ? Number(String(base).replace(/[^\d.\-]/g,'')) : 0;
+              document.getElementById('pay_current_total').value = baseNum ? baseNum.toFixed(2) : '';
+              document.getElementById('sumTotalDue').textContent = baseNum.toFixed(2);
 
-          // Load Payments
-          clearPaymentsUI();
-          if (currentGroupName) {
-            google.script.run.withSuccessHandler(function(res){
-              const lines = (res && res.lines) ? res.lines : [];
-              if (lines.length === 0) { updatePaymentTotals(); return; }
-              lines.forEach(x=>{
-                addPaymentAcc(
-                  (x.percent===''||x.percent==null)?'':Number(x.percent),
-                  (x.amount ===''||x.amount ==null)?'':Number(x.amount).toFixed(2),
-                  isoFromAny(x.dateDue),
-                  isoFromAny(x.datePaid)
-                );
-              });
-              updatePaymentTotals();
-            }).getPayments(currentGroupName);
-          } else {
-            updatePaymentTotals();
-          }
-        }).getInfoData(currentGroupName);
+              // Load Payments
+              clearPaymentsUI();
+              if (currentGroupName) {
+                google.script.run.withSuccessHandler(function(res){
+                  const lines = (res && res.lines) ? res.lines : [];
+                  LOG('Payments lines:', lines.length);
+                  lines.forEach(x=>{
+                    addPaymentAcc(
+                      '', // schedule by £; user can type % to back-calc
+                      (x.amount ===''||x.amount ==null)?'':Number(x.amount).toFixed(2),
+                      isoFromAny(x.dateDue),
+                      isoFromAny(x.datePaid)
+                    );
+                  });
+                  updatePaymentTotals();
+                  step(100);
+                }).getPayments(currentGroupName);
+              } else {
+                updatePaymentTotals(); step(100);
+              }
+            }).getTotalDue(currentGroupName);
+
+          }).getInfoObjByRow(infoRow);
+        }).getInfoRowFromLogistics(logisticsRow, originalGroupName);
       }
 
       function refreshData(){ currentGroupName = document.getElementById('Group').value || currentGroupName; boot(); showChip('saveChip','Row refreshed','ok'); }
@@ -655,23 +669,23 @@
       function gatherPayload(){
         const p={};
         p['Group']=document.getElementById('Group').value||'';
-        p['Arrival']=dmyFromIso(document.getElementById('Arrival').value);
-        p['Departure']=dmyFromIso(document.getElementById('Departure').value);
+        p['Arrival']=document.getElementById('Arrival').value;
+        p['Departure']=document.getElementById('Departure').value;
         p['Deal Status']=document.getElementById('Deal Status').value;
         p['Type']=document.getElementById('Type').value;
         p['Source']=document.getElementById('Source').value;
         p['Hubspot Link']=document.getElementById('Hubspot Link').value;
 
         // Supplier + method
-        p['Supplier']=document.getElementById('Supplier').value;
+        p['Accommodation']=document.getElementById('Supplier').value;
         p['Booking Method']=document.getElementById('Booking Method').value;
         p['Board']=document.getElementById('Board').value;
         p['Extra Information']=document.getElementById('Extra Information').value;
         p['Accommodation Status']=document.getElementById('Accommodation Status').value;
-        p['Deposit Date']=dmyFromIso(document.getElementById('Deposit Date').value);
-        p['Deposit Amount']=document.getElementById('Deposit Amount').value;
-        p['Balance Date']=dmyFromIso(document.getElementById('Balance Date').value);
-        p['Balance Amount']=document.getElementById('Balance Amount').value;
+        p['Deposit Date']=document.getElementById('Deposit Date').value;
+        p['Deposit %']=document.getElementById('Deposit Amount').value;
+        p['Balance Date']=document.getElementById('Balance Date').value;
+        p['Balance %']=document.getElementById('Balance Amount').value;
 
         p['Admin %']=document.getElementById('Admin %').value;
         p['Additional Activity Charge (pp)']=document.getElementById('Additional Activity Charge (pp)').value;
@@ -683,9 +697,8 @@
         p['Xero Invoice Number']=document.getElementById('Xero Invoice Number').value;
         p['Off Peak']=(document.getElementById('Charge Type').value==='Off Peak');
 
-        // Write Current Total back to Info as "Total Due"
-        const baseNum = parseFloat(document.getElementById('pay_current_total').value);
-        if (!isNaN(baseNum)) p['Total Due'] = baseNum;
+        // Write Current Total back through 💰 sheet via saveTotalDue()
+        // (handled separately)
 
         p['Prefix']=document.getElementById('Prefix').value||'';
         for(let i=1;i<=sgCount;i++){ p['P'+i]=document.getElementById('P'+i).value; p['L'+i]=document.getElementById('L'+i).value; }
@@ -717,19 +730,36 @@
         const btn=document.getElementById('saveBtn'); btn.disabled=true; btn.textContent='Saving…';
         const updated=gatherPayload(); const newName=updated['Group'];
 
+        // Save Info
         google.script.run.withSuccessHandler(function(res){
           if(!res||!res.ok){ btn.disabled=false; btn.textContent='Save'; showChip('saveChip',(res&&res.message)?res.message:'Save failed','err'); return; }
           currentGroupName = newName || currentGroupName;
-          const payments=gatherPayments();
-          if(currentGroupName){
-            google.script.run.withSuccessHandler(function(pres){
-              btn.disabled=false; btn.textContent='Save';
-              if(pres&&pres.ok){ document.getElementById('meta-group').textContent=currentGroupName||'(new)'; showChip('saveChip','Saved ✓','ok'); }
-              else { showChip('saveChip',(pres&&pres.message)?pres.message:'Payments save failed','err'); }
-            }).savePayments(currentGroupName, payments);
+
+          // Save Total Due (from Payments page input)
+          const baseNum = parseFloat(document.getElementById('pay_current_total').value);
+          const saveTotal = isNaN(baseNum) ? null : baseNum;
+          const afterTotalDue = function(){
+            // Save Payments
+            const payments=gatherPayments();
+            if(currentGroupName){
+              google.script.run.withSuccessHandler(function(pres){
+                btn.disabled=false; btn.textContent='Save';
+                if(pres&&pres.ok){ document.getElementById('meta-group').textContent=currentGroupName||'(new)'; showChip('saveChip','Saved ✓','ok'); }
+                else { showChip('saveChip',(pres&&pres.message)?pres.message:'Payments save failed','err'); }
+              }).savePayments(currentGroupName, payments);
+            } else {
+              btn.disabled=false; btn.textContent='Save'; showChip('saveChip','Saved ✓','ok');
+            }
+          };
+
+          if (saveTotal!==null){
+            google.script.run.withSuccessHandler(function(){ afterTotalDue(); })
+              .withFailureHandler(function(e){ console.warn('saveTotalDue failed', e); afterTotalDue(); })
+              .saveTotalDue(currentGroupName, saveTotal);
           } else {
-            btn.disabled=false; btn.textContent='Save'; showChip('saveChip','Saved ✓','ok');
+            afterTotalDue();
           }
+
         }).saveInfoData(originalGroupName, updated);
       }
 
@@ -741,6 +771,9 @@
           fillSelect(document.getElementById(id), opts, '');
         });
         fillSelect(document.getElementById('Booking Method'), BOOKING_METHOD_OPTS, '');
+
+        // Ping and then boot sequence
+        google.script.run.withSuccessHandler(r=>{ LOG('ping', r); }).ping();
         boot();
       })();
     </script>
