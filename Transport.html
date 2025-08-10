@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root{
+        --ink:#073763; --line:#e8eef6; --bg:#f7fafc; --field-bg:#fbfdff;
+        --focus:#07376322; --radius:14px; --label:10px;
+      }
+      *{ box-sizing:border-box; }
+      body{ font-family:'Comfortaa',system-ui,Arial,sans-serif; color:var(--ink); background:#f7fafc; margin:0; padding:14px; }
+      .card{
+        background:#fff; border-radius:var(--radius); box-shadow:0 6px 20px rgba(7,55,99,.08);
+        padding:16px 14px; border:1px solid var(--line); position:relative; overflow:hidden;
+      }
+      h2{ margin:0 0 8px 0; font-weight:700; display:flex; align-items:center; gap:8px; }
+      .meta{ font-size:11px; margin:0; }
+      .meta-small{ font-size:10px; color:#7890a8; font-style:italic; margin:2px 0 6px 0; }
+      .field{ margin:10px 0 12px 0; }
+      .field label{ display:block; font-size:var(--label); font-weight:600; margin-bottom:6px; }
+      input[type="text"], textarea, select, input[type="number"]{
+        width:100%; max-width:100%;
+        border:1px solid var(--line); background:var(--field-bg);
+        border-radius:12px; padding:9px 10px; font:12px 'Comfortaa',sans-serif; outline:none;
+        transition: box-shadow .15s ease, border-color .15s ease, background .15s ease;
+      }
+      input:focus, textarea:focus, select:focus{ border-color:#b5c8dc; box-shadow:0 0 0 4px var(--focus); background:#fff; }
+      textarea{ min-height:80px; resize:vertical; }
+      .row-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+      .time-row{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+      .actions{ display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap; }
+      button{ border:none; border-radius:999px; padding:10px 14px; cursor:pointer; font:13px 'Comfortaa',sans-serif; }
+      .btn-primary{ background:var(--ink); color:#fff; box-shadow:0 6px 14px rgba(7,55,99,.18); }
+      .btn-ghost{ background:transparent; color:var(--ink); }
+      .btn-circle{
+        width:34px; height:34px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center;
+        background:#f3f8ff; border:1px solid var(--line); color:var(--ink); padding:0;
+      }
+      .chip{ font-size:10px; padding:4px 8px; border-radius:999px; border:1px solid var(--line); background:#eef5ff; display:none; }
+      .chip.ok{ background:#e6f8ea; border-color:#bfe8c8; color:#1b6b33; }
+      .chip.err{ background:#fdeeee; border-color:#f6caca; color:#9c1c1c; }
+      .admin-row{ display:flex; align-items:center; justify-content:flex-end; margin-top:6px; }
+      .admin-link{ background:none; border:none; padding:0; margin:0 6px 0 0; cursor:pointer;
+        font:12px 'Comfortaa',sans-serif; color:#9bb0c6; text-decoration:underline; }
+      .admin-id{ font-size:9px; color:#9bb0c6; text-align:right; margin-top:4px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>
+        <span>Transport Logistics <span id="badge" class="chip"></span></span>
+        <span style="display:flex; gap:6px;">
+          <button class="btn-circle" title="Refresh row" aria-label="Refresh row" onclick="refreshRow()">↻</button>
+        </span>
+      </h2>
+
+      <!-- Compact header: *Subgroup* (Location) / smaller italic Date: Time -->
+      <div class="meta"><em id="meta-subgroup"></em> (<span id="meta-location"></span>)</div>
+      <div class="meta meta-small" id="meta-datetime"></div>
+
+      <div class="field">
+        <label>🚌Status</label>
+        <select id="status"></select>
+      </div>
+
+      <div class="field">
+        <label>From</label>
+        <select id="from"></select>
+      </div>
+      <div class="field">
+        <label>To</label>
+        <select id="to"></select>
+      </div>
+
+      <div class="time-row">
+        <div class="field">
+          <label>Outbound</label>
+          <select id="outbound"></select>
+        </div>
+        <div class="field">
+          <label>Return</label>
+          <select id="ret"></select>
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div class="field">
+          <label>TYF PAX</label>
+          <input type="number" id="tyfPax" inputmode="numeric" pattern="[0-9]*" min="0" step="1">
+        </div>
+        <div class="field">
+          <label>RB PAX</label>
+          <input type="number" id="rbPax" inputmode="numeric" pattern="[0-9]*" min="0" step="1">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Richards Bros Reference</label>
+        <input type="text" id="rbRef">
+      </div>
+
+      <div class="field">
+        <label>Cost</label>
+        <input type="text" id="cost" inputmode="decimal" placeholder="£0.00">
+      </div>
+
+      <div class="field">
+        <label>Transport Notes</label>
+        <textarea id="notes"></textarea>
+      </div>
+
+      <div class="field">
+        <label>RB Transport Notes</label>
+        <textarea id="rbNotes"></textarea>
+      </div>
+
+      <div class="actions">
+        <button id="saveBtn" class="btn-primary" onclick="save()">Save</button>
+        <span id="saveChip" class="chip">Saved</span>
+        <button class="btn-ghost" onclick="google.script.host.close()">Close</button>
+      </div>
+
+      <div class="admin-row">
+        <button class="admin-link" onclick="syncDropdowns()">Sync</button>
+      </div>
+      <div id="adminId" class="admin-id"></div>
+    </div>
+
+    <script>
+      let activityId = null;
+      let listsCache = { statusOptions:[], locations:[], times:[] };
+
+      function option(v, selected){
+        const o = document.createElement('option');
+        o.value = v; o.textContent = v;
+        if ((selected || '') === v) o.selected = true;
+        return o;
+      }
+      function fillSelect(el, list, selected){
+        const keep = selected ?? el.value ?? '';
+        el.innerHTML = '';
+        el.appendChild(option('', keep));
+        (list || []).forEach(v => el.appendChild(option(v, keep)));
+        if (list.includes(keep)) el.value = keep;
+      }
+      function showChip(id, text, kind){
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.className = 'chip ' + (kind || '');
+        el.style.display = 'inline-block';
+        setTimeout(() => { el.style.display = 'none'; }, 1200);
+      }
+
+      // One fast call: lists + row
+      function boot(forceLists=false){
+        google.script.run.withSuccessHandler(function(res){
+          // lists
+          listsCache = { statusOptions: res.statusOptions||[], locations: res.locations||[], times: res.times||[] };
+          fillSelect(document.getElementById('status'),   listsCache.statusOptions, '');
+          fillSelect(document.getElementById('from'),     listsCache.locations, '');
+          fillSelect(document.getElementById('to'),       listsCache.locations, '');
+          fillSelect(document.getElementById('outbound'), listsCache.times, '');
+          fillSelect(document.getElementById('ret'),      listsCache.times, '');
+
+          // meta + values
+          activityId = res.activityId;
+          document.getElementById('meta-subgroup').textContent = res.meta?.subgroup || '';
+          document.getElementById('meta-location').textContent = res.meta?.location || '';
+          document.getElementById('meta-datetime').textContent = [res.meta?.date, res.meta?.time].filter(Boolean).join(': ');
+          document.getElementById('adminId').textContent = activityId ? ('ID: ' + activityId) : '';
+          const badge = document.getElementById('badge'); badge.style.display='inline-block'; badge.textContent = res.isNew ? 'NEW' : 'EDIT';
+
+          fillSelect(document.getElementById('status'),   listsCache.statusOptions, res.values?.status || '');
+          fillSelect(document.getElementById('from'),     listsCache.locations, res.values?.from || '');
+          fillSelect(document.getElementById('to'),       listsCache.locations, res.values?.to || '');
+          fillSelect(document.getElementById('outbound'), listsCache.times, res.values?.outbound || '');
+          fillSelect(document.getElementById('ret'),      listsCache.times, res.values?.ret || '');
+          document.getElementById('tyfPax').value = res.values?.tyfPax ?? 0;
+          document.getElementById('rbPax').value  = res.values?.rbPax ?? 0;
+          document.getElementById('rbRef').value  = res.values?.rbRef || '';
+          document.getElementById('cost').value   = (res.values?.cost ?? 0) > 0 ? (Number(res.values.cost)).toFixed(2) : '';
+          document.getElementById('notes').value   = res.values?.notes || '';
+          document.getElementById('rbNotes').value = res.values?.rbNotes || '';
+        }).getInitData(forceLists);
+      }
+
+      function refreshRow(){
+        google.script.run.withSuccessHandler(function(row){
+          activityId = row.activityId;
+          document.getElementById('meta-subgroup').textContent = row.meta?.subgroup || '';
+          document.getElementById('meta-location').textContent = row.meta?.location || '';
+          document.getElementById('meta-datetime').textContent = [row.meta?.date, row.meta?.time].filter(Boolean).join(': ');
+          document.getElementById('adminId').textContent = activityId ? ('ID: ' + activityId) : '';
+          const badge = document.getElementById('badge'); badge.style.display='inline-block'; badge.textContent = row.isNew ? 'NEW' : 'EDIT';
+
+          fillSelect(document.getElementById('status'),   listsCache.statusOptions, row.values?.status || '');
+          fillSelect(document.getElementById('from'),     listsCache.locations, row.values?.from || '');
+          fillSelect(document.getElementById('to'),       listsCache.locations, row.values?.to || '');
+          fillSelect(document.getElementById('outbound'), listsCache.times, row.values?.outbound || '');
+          fillSelect(document.getElementById('ret'),      listsCache.times, row.values?.ret || '');
+          document.getElementById('tyfPax').value = row.values?.tyfPax ?? 0;
+          document.getElementById('rbPax').value  = row.values?.rbPax ?? 0;
+          document.getElementById('rbRef').value  = row.values?.rbRef || '';
+          document.getElementById('cost').value   = (row.values?.cost ?? 0) > 0 ? (Number(row.values.cost)).toFixed(2) : '';
+          document.getElementById('notes').value   = row.values?.notes || '';
+          document.getElementById('rbNotes').value = row.values?.rbNotes || '';
+          showChip('saveChip', 'Row refreshed', 'ok');
+        }).getTransportRow();
+      }
+
+      function syncDropdowns(){
+        const current = {
+          status: document.getElementById('status').value,
+          from: document.getElementById('from').value,
+          to: document.getElementById('to').value,
+          outbound: document.getElementById('outbound').value,
+          ret: document.getElementById('ret').value
+        };
+        google.script.run.withSuccessHandler(function(lists){
+          listsCache = lists || listsCache;
+          fillSelect(document.getElementById('status'),   listsCache.statusOptions, current.status);
+          fillSelect(document.getElementById('from'),     listsCache.locations, current.from);
+          fillSelect(document.getElementById('to'),       listsCache.locations, current.to);
+          fillSelect(document.getElementById('outbound'), listsCache.times, current.outbound);
+          fillSelect(document.getElementById('ret'),      listsCache.times, current.ret);
+          showChip('saveChip', 'Dropdowns synced', 'ok');
+        }).getTransportLists(true);
+      }
+
+      // Money input cleanup
+      function cleanMoney(s){ return s.replace(/[^0-9.]/g,''); }
+      document.addEventListener('input', (e)=>{
+        if (e.target && e.target.id === 'cost') e.target.value = cleanMoney(e.target.value);
+      });
+      document.addEventListener('blur', (e)=>{
+        if (e.target && e.target.id === 'cost') {
+          const n = parseFloat(cleanMoney(e.target.value));
+          e.target.value = isNaN(n) ? '' : n.toFixed(2);
+        }
+      }, true);
+
+      function save(){
+        const btn = document.getElementById('saveBtn');
+        btn.disabled = true; btn.textContent = 'Saving…';
+        const payload = {
+          activityId,
+          values: {
+            status:   document.getElementById('status').value,
+            from:     document.getElementById('from').value,
+            to:       document.getElementById('to').value,
+            outbound: document.getElementById('outbound').value,
+            ret:      document.getElementById('ret').value,
+            tyfPax:   document.getElementById('tyfPax').value,
+            notes:    document.getElementById('notes').value,
+            rbPax:    document.getElementById('rbPax').value,
+            rbNotes:  document.getElementById('rbNotes').value,
+            rbRef:    document.getElementById('rbRef').value,
+            cost:     document.getElementById('cost').value
+          }
+        };
+        google.script.run.withSuccessHandler(function(r){
+          btn.disabled = false; btn.textContent = 'Save';
+          if (r && r.ok) showChip('saveChip', 'Saved ✓', 'ok');
+          else showChip('saveChip', (r && r.message) ? r.message : 'Save failed', 'err');
+        }).saveTransportData(payload);
+      }
+
+      // Boot
+      boot(false);
+    </script>
+  </body>
+</html>
