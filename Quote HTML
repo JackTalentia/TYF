@@ -24,7 +24,14 @@
 
       /* Layout utilities */
       .row-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-      .row-60-40{ display:grid; grid-template-columns:3fr 2fr; gap:10px; }
+      .row-split{display:grid;grid-template-columns: minmax(0, var(--col1, 1fr)) minmax(0, var(--col2, 1fr)); gap:10px; align-items: end;}
+
+      /* grid children */
+      .row-split > .field { min-width: 0; }
+
+      /* extra safety for form controls */
+      .row-split input,
+      .row-split select { min-width: 0; width: 100%; }
 
       /* Collapsible sections */
       details.section{ border:1px solid var(--line); border-radius:12px; margin:10px 0; background:#fbfdff; }
@@ -138,13 +145,13 @@
         <summary>Settings</summary>
         <div class="section-body">
           <div class="field"><label>Breakfast Time</label><select id="breakfastTime"></select></div>
-          <div class="row-60-40">
+          <div class="row-split" style="--col1: 55fr; --col2: 45fr;">
             <div class="field"><label>Arrival</label><input type="date" id="arrival"></div>
-            <div class="field"><label>Arrival Time</label><select id="arrivalTime"></select></div>
+            <div class="field"><label></label><select id="arrivalTime"></select></div>
           </div>
-          <div class="row-60-40">
+          <div class="row-split" style="--col1: 55fr; --col2: 45fr;">
             <div class="field"><label>Departure</label><input type="date" id="departure"></div>
-            <div class="field"><label>Departure Time</label><select id="departureTime"></select></div>
+            <div class="field"><label></label><select id="departureTime"></select></div>
           </div>
         </div>
       </details>
