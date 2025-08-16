@@ -138,6 +138,8 @@
             <option>TYF to Book</option>
             <option>Booking Direct</option>
           </select>
+        <div class="field"><label>Accommodation Type</label><select id="Accommodation Type"></select></div>
+
         </div>
         <div class="field"><label>Board</label><select id="Board"></select></div>
         <div class="field"><label>Extra Information</label><textarea id="Extra Information" placeholder="e.g. Barn / Room numbers"></textarea></div>
@@ -252,6 +254,7 @@
       const MAX_PAYMENTS = 7;
       const MAX_CONTACTS = 10;
 
+      const ACCTYPE_OPTIONS = ['Bunkhouse','Booking Direct','Self-Pitched','Pre-Pitched','Glamping','Unknown','Hostel','None'];
       const STATUS_OPTIONS = ['Repeat Booking','Requested','Quote Sent','Negotating','Invoice Sent','Terms Signed','Deposit Paid','Balance Paid','Completed','Cancelled'];
       const TYPE_OPTIONS   = ['New','Return'];
       const SOURCE_OPTIONS = ['TYF Website','Existing Client','New Client','Flooglebinder','Marketing'];
@@ -628,6 +631,8 @@ acc._recalcFromBase();
           fillSelect(document.getElementById('Board'), BOARD_OPTIONS, '');
           fillSelect(document.getElementById('Accommodation Status'), ACC_STATUS_OPTS, '');
           fillSelect(document.getElementById('Booking Method'), BOOKING_METHOD_OPTS, '');
+          fillSelect(document.getElementById('Accommodation Type'), ACCTYPE_OPTIONS, '');
+
           const ct = document.getElementById('Charge Type'); if (ct) ct.value = 'Peak';
 
           // Supplier list from Accom
@@ -671,6 +676,7 @@ acc._recalcFromBase();
               // Accommodation
               document.getElementById('Supplier').value = obj['Accommodation'] || '';
               document.getElementById('Booking Method').value = obj['Booking Method'] || '';
+              document.getElementById('Accommodation Type').value = obj['Accommodation Type'] || '';
               document.getElementById('Board').value = obj['Board'] || '';
               document.getElementById('Extra Information').value = obj['Extra Information'] || '';
               document.getElementById('Accommodation Status').value = obj['Accommodation Status'] || '';
@@ -679,13 +685,14 @@ acc._recalcFromBase();
               document.getElementById('Balance Date').value = obj['Balance Date'] || '';
               document.getElementById('Balance Amount').value = obj['Balance %'] || '';
 
+
               // Finance
-              document.getElementById('Admin %').value = obj['Admin Charge %'] || '';
+              document.getElementById('Admin %').value = obj['Admin %'] || obj['Admin Charge %'] || '';
               document.getElementById('Additional Activity Charge (pp)').value = obj['Additional Activity Charge'] || '';
               document.getElementById('Other Charges (Description)').value = obj['Other Charges Description'] || '';
-              document.getElementById('Other Charges (Amount)').value = obj['Other Charges Amount'] || '';
+              document.getElementById('Other Charges (Amount)').value = obj['Amount (Gross)'] || '';    // <-- from col 77
               document.getElementById('Discount £ (pp)').value = obj['Discount £ (per person)'] || '';
-              document.getElementById('Discount %').value = obj['Discount % (per booking)'] || '';
+              document.getElementById('Discount %').value = obj['Discount % (total)'] || '';             // <-- total, not per-booking
               document.getElementById('Free Places').value = obj['Free Places'] || '';
               document.getElementById('Xero Invoice Number').value = obj['Xero Invoice'] || '';
               const offPeak = (String(obj['Charge Type']).toLowerCase()==='off peak');
@@ -751,6 +758,7 @@ acc._recalcFromBase();
         // Supplier + method
         p['Accommodation']=document.getElementById('Supplier').value;
         p['Booking Method']=document.getElementById('Booking Method').value;
+        p['Accommodation Type'] = document.getElementById('Accommodation Type').value;
         p['Board']=document.getElementById('Board').value;
         p['Extra Information']=document.getElementById('Extra Information').value;
         p['Accommodation Status']=document.getElementById('Accommodation Status').value;
@@ -768,6 +776,8 @@ acc._recalcFromBase();
         p['Free Places']=document.getElementById('Free Places').value;
         p['Xero Invoice Number']=document.getElementById('Xero Invoice Number').value;
         p['Off Peak']=(document.getElementById('Charge Type').value==='Off Peak');
+        p['Charge Type'] = document.getElementById('Charge Type').value;
+
 
         // Write Current Total back through 💰 sheet via saveTotalDue()
         // (handled separately)
@@ -851,6 +861,9 @@ acc._recalcFromBase();
           });
           const bm = document.getElementById('Booking Method');
           if (bm) fillSelect(bm, BOOKING_METHOD_OPTS, '');
+
+          const at = document.getElementById('Accommodation Type');
+          if (at) fillSelect(at, ACCTYPE_OPTIONS, '');
 
           // ping (non-blocking)
           google.script.run.withSuccessHandler(r=>{ LOG('ping', r); }).ping();
