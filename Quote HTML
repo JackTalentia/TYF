@@ -66,7 +66,7 @@
   <body>
     <div class="card">
       <h2>
-        <span>Quote Tool</span>
+        <span>Quoter</span>
         <div class="toolbar">
           <button class="btn-ghost" type="button" onclick="toggleOpenPanel()">Open</button>
           <button class="btn-circle" title="Sync lists" aria-label="Sync lists" onclick="syncLists()">↻</button>
@@ -115,6 +115,7 @@
           <div class="field"><label>Accommodation Provider</label><select id="accommodationProvider"></select></div>
           <div class="field"><label>Booking Method</label><select id="bookingMethod"></select></div>
           <div class="field"><label>Type</label><select id="type"></select></div>
+          <div class="field"><label>Board</label><select id="board"></select></div>
         </div>
       </details>
 
@@ -208,6 +209,36 @@
         }
       }
 
+      //Board Options
+      function initBoardSelect(options, savedValue) {
+      const sel = document.getElementById('board');
+      if (!sel) return;
+
+      // Clear existing
+      sel.innerHTML = '';
+
+      // Populate options
+      for (const label of options) {
+        const opt = document.createElement('option');
+        opt.value = label;
+        opt.textContent = label;
+        sel.appendChild(opt);
+      }
+
+      // If the saved value is not in the options (historic data), add it
+      if (savedValue && !options.includes(savedValue)) {
+        const opt = document.createElement('option');
+        opt.value = savedValue;
+        opt.textContent = savedValue;
+        sel.appendChild(opt);
+      }
+
+      // Set value if we have one
+      if (savedValue) {
+        sel.value = savedValue;
+      }
+    }
+
       // Open panel controls
       function toggleOpenPanel(){ const p=document.getElementById('openPanel'); p.style.display = (p.style.display==='block') ? 'none' : 'block'; }
       function onGroupChosen(){
@@ -239,6 +270,8 @@
         fillSelect(document.getElementById('accommodationProvider'), cache.lists.providers, vals.accommodationProvider);
         fillSelect(document.getElementById('bookingMethod'), cache.lists.bookingMethods, vals.bookingMethod);
         fillSelect(document.getElementById('type'), cache.lists.types, vals.type);
+        fillSelect(document.getElementById('board'), cache.lists.boardOptions, vals.board);
+
 
         // Transport
         document.getElementById('activityTransport').value = vals.activityTransport || '';
@@ -285,6 +318,8 @@
           fillSelect(document.getElementById('accommodationProvider'), lists.providers, defaults.accommodationProvider);
           fillSelect(document.getElementById('bookingMethod'), lists.bookingMethods, defaults.bookingMethod);
           fillSelect(document.getElementById('type'), lists.types, defaults.type);
+          fillSelect(document.getElementById('board'), lists.boardOptions, defaults.board);
+
           fillSelect(document.getElementById('chargeType'), lists.chargeTypes, defaults.chargeType);
           fillSelect(document.getElementById('breakfastTime'), t, defaults.breakfastTime);
           fillSelect(document.getElementById('arrivalTime'),   t, defaults.arrivalTime);
@@ -327,6 +362,8 @@
             provider: document.getElementById('accommodationProvider').value,
             booking: document.getElementById('bookingMethod').value,
             type: document.getElementById('type').value,
+            board: document.getElementById('board').value,
+
             chargeType: document.getElementById('chargeType').value,
             breakfast: document.getElementById('breakfastTime').value,
             arrTime: document.getElementById('arrivalTime').value,
@@ -335,6 +372,8 @@
           fillSelect(document.getElementById('accommodationProvider'), lists.providers, keep.provider);
           fillSelect(document.getElementById('bookingMethod'), lists.bookingMethods, keep.booking);
           fillSelect(document.getElementById('type'), lists.types, keep.type);
+          fillSelect(document.getElementById('board'), lists.boardOptions, keep.board);
+
           fillSelect(document.getElementById('chargeType'), lists.chargeTypes, keep.chargeType);
           fillSelect(document.getElementById('breakfastTime'), lists.times, keep.breakfast);
           fillSelect(document.getElementById('arrivalTime'), lists.times, keep.arrTime);
@@ -447,6 +486,7 @@
           accommodationProvider: document.getElementById('accommodationProvider').value,
           bookingMethod: document.getElementById('bookingMethod').value,
           type: document.getElementById('type').value,
+          board: document.getElementById('board').value,
           activityTransport: document.getElementById('activityTransport').value,
           returnTravel: document.getElementById('returnTravel').value,
           otherCharges: document.getElementById('otherCharges').value,
