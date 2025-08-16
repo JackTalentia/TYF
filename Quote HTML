@@ -145,6 +145,12 @@
         <summary>Settings</summary>
         <div class="section-body">
           <div class="field"><label>Breakfast Time</label><select id="breakfastTime"></select></div>
+          <div class="field"><label for="showMeals">Show Meals?</label>
+              <input type="checkbox" id="showMeals">
+              <div style="font-size: 0.8em; color: #999; margin-top: 2px;">
+                Effects the 🪄 Output
+              </div>
+          </div>
           <div class="row-split" style="--col1: 55fr; --col2: 45fr;">
             <div class="field"><label>Arrival</label><input type="date" id="arrival"></div>
             <div class="field"><label></label><select id="arrivalTime"></select></div>
@@ -309,6 +315,8 @@
         fillSelect(document.getElementById('breakfastTime'), timeList, vals.breakfastTime);
         fillSelect(document.getElementById('arrivalTime'),   timeList, vals.arrivalTime);
         fillSelect(document.getElementById('departureTime'), timeList, vals.departureTime);
+        document.getElementById('showMeals').checked = !!vals.showMeals;
+
 
         // Picker list (ensure it’s populated in case lists changed)
         fillSelect(document.getElementById('activityPicker'), cache.lists.activities, '');
@@ -367,6 +375,8 @@
           document.getElementById('discountGBP').value = defaults.discountGBP || '';
           document.getElementById('arrival').value = defaults.arrival || '';
           document.getElementById('departure').value = defaults.departure || '';
+          document.getElementById('showMeals').checked = !!defaults.showMeals;
+
 
           // Combined activities built from legacy defaults
           const set=new Map();
@@ -531,7 +541,8 @@
           arrivalTime: document.getElementById('arrivalTime').value,
           departure: document.getElementById('departure').value,
           departureTime: document.getElementById('departureTime').value,
-          activitiesCombined: state.items
+          activitiesCombined: state.items,
+          showMeals: document.getElementById('showMeals').checked 
         };
 
         google.script.run.withSuccessHandler(function(res){
