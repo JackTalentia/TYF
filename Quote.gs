@@ -104,13 +104,25 @@ function nextVersionNumber_(base){
   return maxN+1;
 }
 
-function updateMagic_(groupName, version){
+function updateMagic_(groupName, when){
   const ss = SpreadsheetApp.getActive();
   let sh = ss.getSheetByName('🪄');
   if (!sh) sh = ss.insertSheet('🪄');
-  sh.getRange('H1').setValue(groupName||'');
-  sh.getRange('H2').setValue(version||'');
+
+  // H1: group name (text)
+  sh.getRange('H1').setValue(groupName || '');
+
+  // H2: timestamp as a real Date, formatted for display
+  const cell = sh.getRange('H2');
+  const d = (when instanceof Date) ? when : new Date(when);
+  if (isNaN(d.getTime())) {            // safety: bad date -> clear cell
+    cell.setValue('');
+    return;
+  }
+  cell.setValue(d);                    // write as Date
+  cell.setNumberFormat('dd/mm/yyyy hh:mm:ss'); // display like your Quotes sheet
 }
+
 
 // === Public API for Sidebar
 function getSidebarInit(forceLists) {
@@ -149,7 +161,8 @@ function getSidebarInit(forceLists) {
     departure: '2026-05-01',
     departureTime: '14:00',
     activities: [],
-    selfLedActivities: []
+    selfLedActivities: [],
+    showMeals: false
   };
   return { lists, defaults };
 }
@@ -248,6 +261,8 @@ function loadQuoteByVersion(timestampISO){
   v.departureTime = has('departure time') ? fmtTimeString_(get('departure time')) : '';
 
   v.breakfastTime = has('breakfast time') ? fmtTimeString_(get('breakfast time')) : '';
+  v.showMeals = has('show meals?') ? Boolean(get('show meals?')) : false;
+
 
   // --- Activities: build from BOTH columns, preserving duplicates ---
   const actsStr = has('activities') ? (get('activities') || '') : '';
@@ -271,12 +286,7 @@ function saveGroupData(payload){
     const map = headerIndexMap_(sh);
     const width = sh.getLastColumn();
     const row = new Array(width).fill('');
-
-    Logger.log('=== SAVE DEBUG START ===');
-    Logger.log('Incoming v.otherCharges (raw): "%s"', v.otherCharges);
-    Logger.log('parseMoney_(v.otherCharges): %s', parseMoney_(v.otherCharges));
-    Logger.log('Column index for "other charges": %s', map['other charges'] || 'not found');
-    Logger.log('Headers snapshot: %s', JSON.stringify(Object.keys(map)));
+    const ts = new Date();
 
     const combo = Array.isArray(v.activitiesCombined) ? v.activitiesCombined : [];
 
@@ -300,7 +310,7 @@ function saveGroupData(payload){
       } 
     }
 
-    put('timestamp', new Date());
+    put('timestamp', ts);
     put('group name', v.groupName||'');
     put('participants', Number(v.participants)||0);
     put('leaders', Number(v.leaders)||0);
@@ -324,6 +334,7 @@ function saveGroupData(payload){
     put('charge type', v.chargeType||'');
 
     put('breakfast time', v.breakfastTime||'');
+    put('show meals?', !!v.showMeals);
     put('arrival', toDate_(v.arrival));
     put('arrival time', v.arrivalTime||'');
 
@@ -353,9 +364,9 @@ function saveGroupData(payload){
 
     Logger.log('=== SAVE DEBUG END ===');
 
-    updateMagic_(v.groupName, version); // <-- careful: "version" is undefined here in your snippet
+    updateMagic_(v.groupName, ts);               // write a real Date to 🪄!H2
 
-    return { ok:true, version };
+    return { ok:true, version: ts.toISOString() };// keep ISO for the UI chip
   } catch(err) {
     Logger.log('SaveGroupData ERROR: %s', err);
     return { ok:false, message: err && err.message ? err.message : 'Unknown error' };
