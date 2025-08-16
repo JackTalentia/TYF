@@ -122,7 +122,8 @@ function getSidebarInit(forceLists) {
   const times = Array.from(new Set(timesRaw.map(fmtTimeString_).filter(Boolean)));
 
   const groupNames = getAllGroupNames_();
-  const lists = { providers, bookingMethods, types, activities, times, chargeTypes: ['Peak','Off Peak'], groupNames };
+  const boardOptions = ['Room Only','None','Full Board','Half Board','Bed & Breakfast'];
+  const lists = { providers, bookingMethods, types, activities, times, boardOptions, chargeTypes: ['Peak','Off Peak'], groupNames };
 
   const defaults = {
     groupName: '',
@@ -133,6 +134,7 @@ function getSidebarInit(forceLists) {
     accommodationProvider: 'Celtic Camping',
     bookingMethod: 'TYF to Book',
     type: 'Bunkhouse',
+    board: 'Full Board',
     activityTransport: '',
     returnTravel: '',
     otherCharges: '',
@@ -204,6 +206,7 @@ function loadQuoteByVersion(version){
   v.accommodationProvider = has('accommodation provider') ? (get('accommodation provider')||'') : '';
   v.bookingMethod = has('booking method') ? (get('booking method')||'') : '';
   v.type = has('type') ? (get('type')||'') : '';
+  v.board = has('board') ? (get('board') || '') : '';
 
   v.activityTransport = has('activity transport') ? Number(get('activity transport')||0) : 0;
   v.returnTravel = has('return travel') ? (get('return travel')||'') : '';
@@ -264,6 +267,8 @@ function saveGroupData(payload){
     put('accommodation provider', v.accommodationProvider||'');
     put('booking method', v.bookingMethod||'');
     put('type', v.type||'');
+    put('board', v.board || '');
+
 
     put('activity transport', Number(v.activityTransport)||0);
     put('return travel', parseMoney_(v.returnTravel));
