@@ -165,43 +165,45 @@ function buildInfoObjFromMap(map){
     'Source'       : v(8),
     'Hubspot Link' : v(9),
 
+    // Col 11 header is misspelled "Acommodation" in the sheet, but index-based read is fine
     'Accommodation' : v(11),
     'Booking Method': v(12),
+    'Accommodation Type': v(13), // "Type.1" in CSV
+    'Board'            : v(14),
 
-    // FIX: Board is column 14 (not 13)
-    'Board'         : v(14),
-    // Optional: expose Accom Type (col 13) if desired by UI
-    'Accommodation Type': v(13),
+    'Extra Information'    : v(15),
+    'Accommodation Status' : v(16),
 
-    'Extra Information'    : v(16),
-    'Accommodation Status' : v(17),
+    'Deposit Date'         : _isoFromAny_(v(17)),
+    'Deposit %'            : _num_(v(18)),
+    'Balance Date'         : _isoFromAny_(v(19)),
+    'Balance %'            : _num_(v(20)),
 
-    // More dates/percents
-    'Deposit Date'         : _isoFromAny_(v(18)),
-    'Deposit %'            : _num_(v(19)),
-    'Balance Date'         : _isoFromAny_(v(20)),
-    'Balance %'            : _num_(v(21)),
+    // Group prefix + sub-group labels (G1..G16 are cols 22..37)
+    'Prefix'               : v(21),
 
-    'Prefix'               : v(22),
-
-    // Finance
-    'Admin Charge %'             : _num_(v(75)),
-    'Charge Type'                : v(76),
-    'Additional Activity Charge' : _num_(v(77)),
-    'Other Charges Amount'       : _num_(v(78)),
-    'Other Charges Description'  : v(79),
-    'Discount £ (per person)'    : _num_(v(80)),
-    'Discount % (per booking)'   : _num_(v(81)),
-    'Free Places'                : _num_(v(82)),
-    'Xero Invoice'               : v(83),
+    // Finance + misc block (71+)
+    'Total'                      : _num_(v(71)),
+    'Participants'               : _num_(v(72)),
+    'Leaders'                    : _num_(v(73)),
+    'Admin %'                    : _num_(v(74)),
+    'Charge Type'                : v(75),
+    'Additional Activity Charge' : _num_(v(76)),
+    'Amount (Gross)'             : _num_(v(77)),
+    'Other Charges Description'  : v(78),
+    'Discount £ (per person)'    : _num_(v(79)),
+    'Discount % (total)'         : _num_(v(80)),
+    'Free Places'                : _num_(v(81)),
+    'Xero Invoice'               : v(82),
 
     '__row' : map.row,
     '__lastCol' : map.lastCol
   };
 
-  // P1..P16 (39..54), L1..L16 (55..70)
-  for (let i=1;i<=16;i++) obj['P'+i] = v(38+i);
-  for (let i=1;i<=16;i++) obj['L'+i] = v(54+i);
+  // P1..P16 are cols 38..53  → v(37+i)
+  for (let i=1;i<=16;i++) obj['P'+i] = v(37+i);
+  // L1..L16 are cols 54..69  → v(53+i)
+  for (let i=1;i<=16;i++) obj['L'+i] = v(53+i);
 
   return obj;
 }
@@ -359,11 +361,13 @@ function saveInfoData(originalName, updated) {
   const newName = String((updated && updated['Group']) || originalName || '').trim();
   if (!newName) return { ok:false, message:'Group name is required.' };
 
-  let row = TEST_MODE ? TEST_ROW : _A1rowOfGroupInInfo_(originalName || newName);
-  if (!TEST_MODE && row === -1) {
-    row = info.getLastRow() + 1;
-    if (row < 2) row = 2;
-  }
+    let row = TEST_MODE ? TEST_ROW : _A1rowOfGroupInInfo_(newName);
+    if (!TEST_MODE && row === -1 && originalName) {
+      row = _A1rowOfGroupInInfo_(originalName);
+    }
+    if (!TEST_MODE && (row === -1 || row < 2)) {
+      row = Math.max(info.getLastRow() + 1, 2);
+    }
   function setC(col, val) { if (val !== undefined) info.getRange(row, col).setValue(val); }
 
   setC(1, newName);
@@ -374,32 +378,42 @@ function saveInfoData(originalName, updated) {
   setC(8, updated['Source'] || '');
   setC(9, updated['Hubspot Link'] || '');
 
-  setC(11, updated['Accommodation'] || '');
+  // 11..14
+  setC(11, updated['Accommodation'] || '');     // "Acommodation" header in sheet
   setC(12, updated['Booking Method'] || '');
-  setC(13, updated['Accommodation Type'] || '');
+  setC(13, updated['Accommodation Type'] || ''); 
   setC(14, updated['Board'] || '');
-  setC(16, updated['Extra Information'] || '');
-  setC(17, updated['Accommodation Status'] || '');
-  setC(18, _dmyFromIso_(updated['Deposit Date'] || ''));
-  setC(19, updated['Deposit %'] || '');
-  setC(20, _dmyFromIso_(updated['Balance Date'] || ''));
-  setC(21, updated['Balance %'] || '');
 
+  // 15..20 (fixed off-by-1)
+  setC(15, updated['Extra Information'] || '');
+  setC(16, updated['Accommodation Status'] || '');
+  setC(17, _dmyFromIso_(updated['Deposit Date'] || ''));
+  setC(18, updated['Deposit %'] || '');
+  setC(19, _dmyFromIso_(updated['Balance Date'] || ''));
+  setC(20, updated['Balance %'] || '');
+
+  // Prefix + G1..G16
   const prefix = String(updated['Prefix'] || '').trim();
-  setC(22, prefix);
-  for (let i = 0; i < 16; i++) setC(23 + i, prefix ? `${prefix} #${i+1}` : '');
-  for (let i = 0; i < 16; i++) setC(39 + i, updated['P'+(i+1)] || '');
-  for (let i = 0; i < 16; i++) setC(55 + i, updated['L'+(i+1)] || '');
+  setC(21, prefix);
 
-  setC(75, updated['Admin Charge %'] || updated['Admin %'] || '');
-  setC(76, updated['Charge Type'] || '');
-  setC(77, updated['Additional Activity Charge'] || updated['Additional Activity Charge (pp)'] || '');
-  setC(78, updated['Other Charges Amount'] || updated['Other Charges (Amount)'] || '');
-  setC(79, updated['Other Charges Description'] || updated['Other Charges (Description)'] || '');
-  setC(80, updated['Discount £ (per person)'] || updated['Discount £ (pp)'] || '');
-  setC(81, updated['Discount % (per booking)'] || updated['Discount %'] || '');
-  setC(82, updated['Free Places'] || '');
-  setC(83, updated['Xero Invoice'] || updated['Xero Invoice Number'] || '');
+  // P1..P16  (cols 38..53)
+  for (let i = 0; i < 16; i++) setC(38 + i, updated['P'+(i+1)] || '');
+  // L1..L16  (cols 54..69)
+  for (let i = 0; i < 16; i++) setC(54 + i, updated['L'+(i+1)] || '');
+
+  // Finance/misc block (align with CSV)
+  setC(74, updated['Admin %'] || updated['Admin Charge %'] || '');
+  setC(75, updated['Charge Type'] || '');
+  setC(76, updated['Additional Activity Charge'] || updated['Additional Activity Charge (pp)'] || '');
+  setC(77, updated['Amount (Gross)'] || updated['Other Charges (Amount)'] || '');
+  setC(78, updated['Other Charges Description'] || updated['Other Charges (Description)'] || '');
+  setC(79, updated['Discount £ (per person)'] || updated['Discount £ (pp)'] || '');
+  setC(80, updated['Discount % (total)'] || updated['Discount %'] || '');
+  setC(81, updated['Free Places'] || '');
+  setC(82, updated['Xero Invoice'] || updated['Xero Invoice Number'] || '');
+
+  // Optional: Participants (if you add it to the UI later)
+  if (updated['Participants'] !== undefined) setC(72, updated['Participants']);
 
   return { ok:true, message:'Saved' };
 }
