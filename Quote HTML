@@ -224,12 +224,34 @@
 
       // Open panel controls
       function toggleOpenPanel(){ const p=document.getElementById('openPanel'); p.style.display = (p.style.display==='block') ? 'none' : 'block'; }
+      
       function onGroupChosen(){
         const g = document.getElementById('groupSelect').value;
-        const verSel = document.getElementById('versionSelect');
-        verSel.disabled = !g; verSel.innerHTML=''; if(!g) return;
-        google.script.run.withSuccessHandler((versions)=>{ fillSelect(verSel, versions, ''); }).getVersionsForGroup(g);
+        const sel = document.getElementById('versionSelect');
+        sel.disabled = !g; sel.innerHTML = '';
+        if(!g) return;
+
+        google.script.run.withSuccessHandler((versions)=>{
+          // Add a blank option
+          const blank = document.createElement('option');
+          blank.value = '';
+          blank.textContent = '';
+          sel.appendChild(blank);
+
+          versions.forEach(tsISO => {
+            const d = new Date(tsISO);
+            const opt = document.createElement('option');
+            opt.value = tsISO; // ✅ exact value we match in the backend
+            // nice human label (UK-style)
+            opt.textContent = d.toLocaleString('en-GB', {
+              year: 'numeric', month: 'short', day: '2-digit',
+              hour: '2-digit', minute: '2-digit', hour12: false
+            });
+            sel.appendChild(opt);
+          });
+        }).getVersionsForGroup(g);
       }
+
       function loadSelectedVersion(){
         const v = document.getElementById('versionSelect').value; if(!v) return;
         const hint = document.getElementById('openHint'); hint.textContent = 'Loading…';
