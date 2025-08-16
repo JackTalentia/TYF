@@ -170,27 +170,44 @@ function getVersionsForGroup(groupName){
   const sh = getQuotesSheet_();
   const map = headerIndexMap_(sh);
   const colGroup = map['group name'] || 1;
-  const colVer = map['version'] || 2; // handles trailing space via trim in map
+  const colTs = 1; // ✅ Column A is Timestamp
   const rows = Math.max(0, sh.getLastRow()-1);
   if (!rows) return [];
   const data = sh.getRange(2, 1, rows, sh.getLastColumn()).getValues();
+
   const out = [];
-  data.forEach(r=>{ const g=(r[colGroup-1]||'').toString().trim(); if(g===String(groupName).trim()){ const v=(r[colVer-1]||'').toString().trim(); if(v) out.push(v); } });
-  out.sort((a,b)=>{ const na=parseInt((a.match(/#(\d+)$/)||[])[1]||'0',10); const nb=parseInt((b.match(/#(\d+)$/)||[])[1]||'0',10); return nb-na; });
+  const wanted = String(groupName).trim();
+  data.forEach(r=>{
+    const g = (r[colGroup-1]||'').toString().trim();
+    if (g === wanted) {
+      const ts = r[colTs-1];
+      if (ts instanceof Date) out.push(ts.toISOString());       // store ISO value
+      else if (ts) out.push(String(ts));                        // fallback
+    }
+  });
+  out.sort((a,b)=> new Date(b) - new Date(a)); // newest first
   return out;
 }
 
-function loadQuoteByVersion(version){
+
+
+function loadQuoteByVersion(timestampISO){
   const sh = getQuotesSheet_();
   const map = headerIndexMap_(sh);
+  const colTs = 1; // ✅ Column A is Timestamp
   const rows = Math.max(0, sh.getLastRow()-1);
   if (!rows) return { ok:false, message:'No data' };
+
   const data = sh.getRange(2, 1, rows, sh.getLastColumn()).getValues();
-  let row=null;
+  let row = null;
+
+  const wanted = String(timestampISO).trim();
   for (const r of data){
-    if ((r[(map['version']||2)-1]||'').toString().trim()===String(version).trim()){ row=r; break; }
+    const ts = r[colTs-1];
+    const tsIso = ts instanceof Date ? ts.toISOString() : String(ts).trim();
+    if (tsIso === wanted) { row = r; break; }
   }
-  if(!row) return { ok:false, message:'Version not found' };
+  if(!row) return { ok:false, message:'Timestamp not found' };
 
   const get = (name) => row[(map[name]-1)];
   const has = (name) => Object.prototype.hasOwnProperty.call(map, name);
@@ -233,7 +250,7 @@ function loadQuoteByVersion(version){
   const selfLedSet = new Set(sl);
   const items = acts.map(name => ({ name, selfLed: selfLedSet.has(name) }));
 
-  updateMagic_(v.groupName, version);
+  updateMagic_(v.groupName, wanted); // H2 holds the ISO timestamp
   return { ok:true, values:v, items };
 }
 
@@ -257,7 +274,7 @@ function saveGroupData(payload){
     function putAny(names, value){ for (const n of names) if (Object.prototype.hasOwnProperty.call(map,n)) { row[map[n]-1] = value; return; } }
 
     put('timestamp', new Date());
-    put('version', version);
+
     put('group name', v.groupName||'');
     put('participants', Number(v.participants)||0);
     put('leaders', Number(v.leaders)||0);
