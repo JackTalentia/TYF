@@ -6,6 +6,21 @@ const LOGISTICS_SHEET_NAME = 'Logistics';
 const CONTACTS_SHEET_NAME  = '👤';
 const DUE_SHEET_NAME       = '💰';
 const PAYMENTS_SHEET_NAME  = '💵';
+const CHECKLIST_SHEET_NAME = 'Check List';
+// ---- Checklist headers (one source of truth) ----
+const CHECKLIST_HEADERS = [
+  'Group',
+  'SOS Programme','Reg Forms Sent','Terms Signed','PAX Requested','PAX Confirmed',
+  'Reg Forms Recieved','Sub Group Distribution','PVC Created','PVC Booked',
+  'Dietaries to Accom','Dietaries to External','Feedback Collected',
+  "Photo's Sent",'Next Year Booking','Share on Socials'
+];
+
+// Expose to the UI (so labels match exactly)
+function getChecklistHeaders(){ return CHECKLIST_HEADERS; }
+
+
+
 
 /* ---- Test switches (only affect Info row resolution) ---- */
 const TEST_MODE = false;     // set true to force TEST_ROW for Info sheet reads/writes
@@ -57,6 +72,117 @@ function _A1rowOfGroupInInfo_(group) {
   const idx0 = keys.indexOf(String(group || '').trim());
   return (idx0 === -1) ? -1 : (idx0 + 2);
 }
+
+
+function _ensureChecklist_(){
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName('Check List');
+  if (!sh){
+    sh = ss.insertSheet('Check List');
+  }
+  return sh;
+}
+
+function loadChecklist(obj){
+  const fields = [
+    'SOS Programme','Reg Forms Sent','Terms Signed','PAX Requested','PAX Confirmed',
+    'Reg Forms Recieved','Sub Group Distribution','PVC Created','PVC Booked',
+    'Dietaries to Accom','Dietaries to External','Feedback Collected',
+    "Photo's Sent",'Next Year Booking','Share on Socials'
+  ];
+  fields.forEach(f=>{
+    const el = document.getElementById(f);
+    if (el) el.checked = obj[f] ? true : false;
+  });
+}
+
+function gatherChecklist(){
+  const p={};
+  const fields = [
+    'SOS Programme','Reg Forms Sent','Terms Signed','PAX Requested','PAX Confirmed',
+    'Reg Forms Recieved','Sub Group Distribution','PVC Created','PVC Booked',
+    'Dietaries to Accom','Dietaries to External','Feedback Collected',
+    "Photo's Sent",'Next Year Booking','Share on Socials'
+  ];
+  fields.forEach(f=>{
+    const el=document.getElementById(f);
+    p[f] = (el && el.checked) ? 1 : 0;
+  });
+  return p;
+}
+
+function getChecklist(groupName){
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(CHECKLIST_SHEET_NAME);
+  if (!sh) return {};
+
+  const data = sh.getDataRange().getValues();
+  const headers = data[0];
+  const idx = data.findIndex(r => String(r[0]).trim() === String(groupName).trim());
+  if (idx === -1) return {}; // not found yet
+
+  const row = data[idx];
+  const obj={};
+  headers.forEach((h,i)=>{
+    if (i===0) return; // skip group name col
+    obj[h] = row[i];
+  });
+  return obj;
+}
+
+function getChecklist(groupName){
+  const sh = _ensureChecklist_();
+  const values = sh.getDataRange().getValues();
+  const headers = values[0];
+  const row = values.find(r => r[0] === groupName);
+  if (!row) return {}; // nothing yet
+
+  const obj = {};
+  headers.forEach((h, i) => {
+    if (!h) return;
+    obj[h] = row[i];
+  });
+  return obj;
+}
+
+
+function saveChecklist(groupName, checklistObj){
+  const name = String(groupName||'').trim();
+  if (!name) return { ok:false, message:'Group required for checklist.' };
+
+  const sh = _ensureChecklist_();
+
+  // Ensure header row exactly matches our headers
+  const headers = CHECKLIST_HEADERS;
+  const have = sh.getRange(1,1,1,Math.max(headers.length, sh.getLastColumn()||1)).getDisplayValues()[0] || [];
+  const same = headers.length === have.length && headers.every((h,i)=>String(have[i]||'').trim()===h);
+  if (!same) {
+    sh.clear(); // wipe stale layout if it doesn't match
+    sh.getRange(1,1,1,headers.length).setValues([headers]).setFontWeight('bold');
+  }
+
+  // Find existing row by group
+  let row = -1;
+  const last = sh.getLastRow();
+  if (last >= 2) {
+    const keys = sh.getRange(2,1,last-1,1).getValues().map(r=>String(r[0]||'').trim());
+    const idx0 = keys.indexOf(name);
+    if (idx0 !== -1) row = 2 + idx0;
+  }
+  if (row === -1) row = Math.max(2, last+1);
+
+  // Build values in EXACT header order
+  const out = headers.map((h,i)=>{
+    if (i===0) return name;                  // Group column
+    const v = checklistObj && checklistObj.hasOwnProperty(h) ? checklistObj[h] : false;
+    return !!v;                              // write real booleans (TRUE/FALSE)
+  });
+
+  sh.getRange(row,1,1,headers.length).setValues([out]);
+  return { ok:true };
+}
+
+
 
 function getInfoGroups(){
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -195,6 +321,12 @@ function buildInfoObjFromMap(map){
     'Discount % (total)'         : _num_(v(80)),
     'Free Places'                : _num_(v(81)),
     'Xero Invoice'               : v(82),
+    'About'                      : v(83),
+    'Feedback'                   : v(84),
+    'Learning Outcomes'          : v(85),
+    'Other Information'          : v(86),
+
+
 
     '__row' : map.row,
     '__lastCol' : map.lastCol
@@ -411,6 +543,12 @@ function saveInfoData(originalName, updated) {
   setC(80, updated['Discount % (total)'] || updated['Discount %'] || '');
   setC(81, updated['Free Places'] || '');
   setC(82, updated['Xero Invoice'] || updated['Xero Invoice Number'] || '');
+
+  //Notes
+  setC(83, updated['About'] || '');
+  setC(84, updated['Feedback'] || '');
+  setC(85, updated['Learning Outcomes'] || '');
+  setC(86, updated['Other Information'] || '');
 
   // Optional: Participants (if you add it to the UI later)
   if (updated['Participants'] !== undefined) setC(72, updated['Participants']);
