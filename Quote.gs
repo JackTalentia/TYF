@@ -117,7 +117,7 @@ function getSidebarInit(forceLists) {
   const providers = readColumn_(''+CFG.accomSheet, CFG.accomProviderRange).map(v=>String(v).trim());
   const bookingMethods = readColumn_(''+CFG.accomSheet, CFG.accomBookingRange).map(v=>String(v).trim());
   const types = readColumn_(''+CFG.accomSheet, CFG.accomTypeRange).map(v=>String(v).trim());
-  const activities = readColumn_(''+CFG.activitiesSheet, CFG.activitiesRange).map(v=>String(v).trim());
+  const activities = readColumn_('' + CFG.activitiesSheet, CFG.activitiesRange).map(v => String(v).trim()).sort((a, b) => a.localeCompare(b));
   const timesRaw = readColumn_(''+CFG.settingsSheet, CFG.timeRange);
   const times = Array.from(new Set(timesRaw.map(fmtTimeString_).filter(Boolean)));
 
