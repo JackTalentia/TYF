@@ -128,6 +128,25 @@
         <button type="button" class="small-btn" onclick="addContactAcc()">+ Add Contact</button>
       </div>
 
+      <div id="section-notes" class="hidden">
+        <div class="field"><label>About</label>
+          <textarea id="About" class="richtext"></textarea>
+        </div>
+
+        <div class="field"><label>Feedback</label>
+          <textarea id="Feedback" class="richtext"></textarea>
+        </div>
+
+        <div class="field"><label>Learning Outcomes</label>
+          <textarea id="Learning Outcomes" class="richtext"></textarea>
+        </div>
+
+        <div class="field"><label>Other Information</label>
+          <textarea id="Other Information" class="richtext"></textarea>
+        </div>
+      </div>
+
+
       <!-- Accommodation -->
       <div id="section-accom" class="hidden">
         <div class="field"><label>Supplier</label><select id="Supplier"></select></div>
@@ -159,6 +178,25 @@
         <div class="field"><label>Prefix</label><input id="Prefix" type="text" placeholder="e.g. A, B, C"></div>
         <div id="sgContainer"></div>
         <button type="button" class="small-btn" style="margin-top:6px;" onclick="addSubGroupRow()">+ Add Group</button>
+      </div>
+
+      <!-- Checklists -->
+      <div id="section-checklist" class="hidden">
+        <div class="field"><label><input type="checkbox" id="SOS Programme"> SOS Programme</label></div>
+        <div class="field"><label><input type="checkbox" id="Reg Forms Sent"> Reg Forms Sent</label></div>
+        <div class="field"><label><input type="checkbox" id="Terms Signed"> Terms Signed</label></div>
+        <div class="field"><label><input type="checkbox" id="PAX Requested"> PAX Requested</label></div>
+        <div class="field"><label><input type="checkbox" id="PAX Confirmed"> PAX Confirmed</label></div>
+        <div class="field"><label><input type="checkbox" id="Reg Forms Recieved"> Reg Forms Recieved</label></div>
+        <div class="field"><label><input type="checkbox" id="Sub Group Distribution"> Sub Group Distribution</label></div>
+        <div class="field"><label><input type="checkbox" id="PVC Created"> PVC Created</label></div>
+        <div class="field"><label><input type="checkbox" id="PVC Booked"> PVC Booked</label></div>
+        <div class="field"><label><input type="checkbox" id="Dietaries to Accom"> Dietaries to Accom</label></div>
+        <div class="field"><label><input type="checkbox" id="Dietaries to External"> Dietaries to External</label></div>
+        <div class="field"><label><input type="checkbox" id="Feedback Collected"> Feedback Collected</label></div>
+        <div class="field"><label><input type="checkbox" id="Photo's Sent"> Photo's Sent</label></div>
+        <div class="field"><label><input type="checkbox" id="Next Year Booking"> Next Year Booking</label></div>
+        <div class="field"><label><input type="checkbox" id="Share on Socials"> Share on Socials</label></div>
       </div>
 
       <!-- Finance -->
@@ -233,16 +271,18 @@
       <div class="admin-row"><div id="adminId" class="admin-id"></div></div>
     </div>
 
-    <!-- Drawer -->
+    <!-- Burger Menu -->
     <div id="drawerBackdrop" class="drawer-backdrop" onclick="toggleDrawer(false)"></div>
     <div id="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Sections">
       <h3>Sections</h3>
       <ul class="menu">
         <li><button id="m-overview"  class="active" onclick="showSection('overview')">Overview</button></li>
+        <li><button id="m-notes" onclick="showSection('notes')">Notes</button></li>
         <li><button id="m-accom"                 onclick="showSection('accom')">Accommodation</button></li>
         <li><button id="m-subgroups"             onclick="showSection('subgroups')">Sub Groups</button></li>
         <li><button id="m-finance"               onclick="showSection('finance')">Finance</button></li>
         <li><button id="m-payments"              onclick="showSection('payments')">Payments</button></li>
+        <li><button id="m-checklist"             onclick="showSection('checklist')">Checklist</button></li>
       </ul>
     </div>
 
@@ -262,8 +302,27 @@
       const ACC_STATUS_OPTS= ['Confirmed','Requested','N/A'];
       const BOOKING_METHOD_OPTS = ['None','TYF to Book','Booking Direct'];
 
+
       const LOG = (...a)=>console.log('[InfoUI]', ...a);
       const WARN = (...a)=>console.warn('[InfoUI]', ...a);
+
+      // Will be filled from server so labels match sheet headers exactly
+        let CHECKLIST_FIELDS = [];
+
+        // Load headers once (on init) so UI keys always match the sheet
+        function loadChecklistHeadersThen(cb){
+          if (CHECKLIST_FIELDS.length){
+            cb && cb();
+            return;
+          }
+          google.script.run.withSuccessHandler(function(headers){
+            CHECKLIST_FIELDS = (headers || []).slice(1); // drop 'Group'
+            cb && cb();
+          }).getChecklistHeaders();
+        }
+
+
+      
       function step(p){ document.getElementById('prog').style.width = p + '%'; }
 
       function updateRemaining(){
@@ -313,7 +372,14 @@
 
       /* Drawer */
       function toggleDrawer(open){ const b=document.getElementById('drawerBackdrop'); const d=document.getElementById('drawer'); if(open){b.style.display='block'; d.style.display='block';} else {b.style.display='none'; d.style.display='none';}}
-      function showSection(id){ ['overview','accom','subgroups','finance','payments'].forEach(sec=>{ document.getElementById('section-'+sec).classList.toggle('hidden', sec!==id); document.getElementById('m-'+sec).classList.toggle('active', sec===id); }); toggleDrawer(false); }
+      function showSection(id){
+        ['overview','accom','subgroups','finance','payments','notes','checklist'].forEach(sec=>{
+          document.getElementById('section-'+sec).classList.toggle('hidden', sec!==id);
+          document.getElementById('m-'+sec).classList.toggle('active', sec===id);
+        });
+        toggleDrawer(false);
+      }
+
 
       /* Helpers */
       function showChip(id, text, kind){ const el=document.getElementById(id); el.textContent=text; el.className='chip '+(kind||''); el.style.display='inline-block'; setTimeout(()=>{ el.style.display='none'; }, 1200); }
@@ -703,6 +769,28 @@ acc._recalcFromBase();
               const sgPairs=[]; for(let i=1;i<=MAX_GROUPS;i++){ const p=obj['P'+i], l=obj['L'+i]; if((p!==''&&p!=null)||(l!==''&&l!=null)) sgPairs.push([String(p||''),String(l||'')]); }
               rebuildSgRows(sgPairs.length?sgPairs:[['',''],['','']]);
 
+              // Notes
+              document.getElementById('About').value              = obj['About'] || '';
+              document.getElementById('Feedback').value           = obj['Feedback'] || '';
+              document.getElementById('Learning Outcomes').value  = obj['Learning Outcomes'] || '';
+              document.getElementById('Other Information').value  = obj['Other Information'] || '';
+
+
+              // CHECKLIST: load from separate sheet (after we know the fields)
+              loadChecklistHeadersThen(function(){
+                google.script.run.withSuccessHandler(function(cl){
+                  // cl can have TRUE/FALSE (bool) or 'TRUE'/'FALSE' (string) depending on sheet
+                  CHECKLIST_FIELDS.forEach(id=>{
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    const v = cl ? cl[id] : false;
+                    el.checked = (v === true || v === 'TRUE' || v === 1 || v === '1');
+                  });
+                }).getChecklist(nameForLookup);
+              });
+
+
+
               step(65);
 
               // Payments base + payments
@@ -736,6 +824,8 @@ acc._recalcFromBase();
             }).getInfoObjByRow(infoRow);
 
           }).getInfoRowForGroup(nameForLookup);
+
+          
 
         }catch(err){
           console.error('boot() crashed:', err);
@@ -778,6 +868,13 @@ acc._recalcFromBase();
         p['Off Peak']=(document.getElementById('Charge Type').value==='Off Peak');
         p['Charge Type'] = document.getElementById('Charge Type').value;
 
+        // Notes
+        p['About']             = document.getElementById('About').value;
+        p['Feedback']          = document.getElementById('Feedback').value;
+        p['Learning Outcomes'] = document.getElementById('Learning Outcomes').value;
+        p['Other Information'] = document.getElementById('Other Information').value;
+
+
 
         // Write Current Total back through 💰 sheet via saveTotalDue()
         // (handled separately)
@@ -808,33 +905,96 @@ acc._recalcFromBase();
 
       function gatherPayments(){ return readPaymentsFromUI(); }
 
-      function save(){
-        const btn=document.getElementById('saveBtn'); btn.disabled=true; btn.textContent='Saving…';
-        const updated=gatherPayload(); const newName=updated['Group'];
+      function gatherChecklist(){
+        const obj = {};
+        const ids = CHECKLIST_FIELDS.length ? CHECKLIST_FIELDS : [
+          'SOS Programme','Reg Forms Sent','Terms Signed','PAX Requested','PAX Confirmed',
+          'Reg Forms Recieved','Sub Group Distribution','PVC Created','PVC Booked',
+          'Dietaries to Accom','Dietaries to External','Feedback Collected',
+          "Photo's Sent",'Next Year Booking','Share on Socials'
+        ];
+        ids.forEach(id=>{
+          const el = document.getElementById(id);
+          obj[id] = !!(el && el.checked);
+        });
+        return obj;
+      }
 
-        // Save Info
-        google.script.run.withSuccessHandler(function(res){
-          if(!res||!res.ok){ btn.disabled=false; btn.textContent='Save'; showChip('saveChip',(res&&res.message)?res.message:'Save failed','err'); return; }
+
+
+
+      function save(){
+        const btn = document.getElementById('saveBtn');
+        btn.disabled = true; btn.textContent = 'Saving…';
+
+        const updated   = gatherPayload();
+        const newName   = (updated['Group'] || '').trim();
+
+        // Read the checklist once up front (booleans)
+        const checklist = (function(){
+          const ids = [
+            'SOS Programme','Reg Forms Sent','Terms Signed','PAX Requested','PAX Confirmed',
+            'Reg Forms Recieved','Sub Group Distribution','PVC Created','PVC Booked',
+            'Dietaries to Accom','Dietaries to External','Feedback Collected',
+            "Photo's Sent",'Next Year Booking','Share on Socials'
+          ];
+          const o = {};
+          ids.forEach(id=>{
+            const el = document.getElementById(id);
+            o[id] = !!(el && el.checked);
+          });
+          return o;
+        })();
+
+        // 1) Save the main Info row (also creates new group rows as needed)
+        google.script.run.withSuccessHandler(function(infoRes){
+          if (!infoRes || !infoRes.ok){
+            btn.disabled=false; btn.textContent='Save';
+            showChip('saveChip', (infoRes && infoRes.message) ? infoRes.message : 'Save failed', 'err');
+            return;
+          }
+
+          // use the newly set name going forward
           currentGroupName = newName || currentGroupName;
 
-          // Save Total Due (from Payments page input)
-          const baseNum = parseFloat(document.getElementById('pay_current_total').value);
-          const saveTotal = isNaN(baseNum) ? null : baseNum;
-          const afterTotalDue = function(){
-            // Save Payments
-            const payments=gatherPayments();
-            if(currentGroupName){
-              google.script.run.withSuccessHandler(function(pres){
-                btn.disabled=false; btn.textContent='Save';
-                if(pres&&pres.ok){ document.getElementById('meta-group').textContent=currentGroupName||'(new)'; showChip('saveChip','Saved ✓','ok'); }
-                else { showChip('saveChip',(pres&&pres.message)?pres.message:'Payments save failed','err'); }
-              }).savePayments(currentGroupName, payments);
-            } else {
-              btn.disabled=false; btn.textContent='Save'; showChip('saveChip','Saved ✓','ok');
-            }
-          };
+          // helper to finish UI nicely
+          function done(msg, kind){
+            btn.disabled=false; btn.textContent='Save';
+            document.getElementById('meta-group').textContent = currentGroupName || '(new)';
+            showChip('saveChip', msg || 'Saved ✓', kind || 'ok');
+          }
 
-          if (saveTotal!==null){
+          // 2) Save Total Due (if present)
+          const baseNum   = parseFloat(document.getElementById('pay_current_total').value);
+          const saveTotal = isNaN(baseNum) ? null : baseNum;
+
+          function afterTotalDue(){
+            // 3) Save Payments
+            const payments = gatherPayments();
+            if (!currentGroupName){
+              // no name -> skip payments & checklist
+              return done('Saved ✓','ok');
+            }
+
+            google.script.run.withSuccessHandler(function(payRes){
+              // 4) Save Checklist (always attempt; independent of payments)
+              google.script.run
+                .withSuccessHandler(function(){ done('Saved ✓','ok'); })
+                .withFailureHandler(function(e){ console.warn('saveChecklist failed', e); done('Saved (checklist error)','err'); })
+                .saveChecklist(currentGroupName, checklist);
+
+            }).withFailureHandler(function(e){
+              console.warn('savePayments failed', e);
+              // Even if payments fail, still try to save checklist
+              google.script.run
+                .withSuccessHandler(function(){ done('Saved (payments error)','err'); })
+                .withFailureHandler(function(e2){ console.warn('saveChecklist failed', e2); done('Saved (payments+checklist error)','err'); })
+                .saveChecklist(currentGroupName, checklist);
+
+            }).savePayments(currentGroupName, payments);
+          }
+
+          if (saveTotal !== null){
             google.script.run.withSuccessHandler(function(){ afterTotalDue(); })
               .withFailureHandler(function(e){ console.warn('saveTotalDue failed', e); afterTotalDue(); })
               .saveTotalDue(currentGroupName, saveTotal);
@@ -844,6 +1004,8 @@ acc._recalcFromBase();
 
         }).saveInfoData(originalGroupName, updated);
       }
+
+
 
       // Boot
       (function init(){
@@ -855,7 +1017,13 @@ acc._recalcFromBase();
 
           // Fill static dropdowns immediately (so UI doesn’t depend on async)
           ['Deal Status','Type','Source','Board','Accommodation Status'].forEach(id=>{
-            const opts = { 'Deal Status':STATUS_OPTIONS, 'Type':TYPE_OPTIONS, 'Source':SOURCE_OPTIONS, 'Board':BOARD_OPTIONS, 'Accommodation Status':ACC_STATUS_OPTS }[id];
+            const opts = {
+              'Deal Status':STATUS_OPTIONS,
+              'Type':TYPE_OPTIONS,
+              'Source':SOURCE_OPTIONS,
+              'Board':BOARD_OPTIONS,
+              'Accommodation Status':ACC_STATUS_OPTS
+            }[id];
             const el = document.getElementById(id);
             if (el) fillSelect(el, opts, '');
           });
@@ -884,7 +1052,9 @@ acc._recalcFromBase();
               }
             }
 
-            boot(); // now safe: picker exists and has a value
+            // Only after groups are ready, load headers then boot
+            loadChecklistHeadersThen(boot);
+
           }).getInfoGroups();
 
         }catch(err){
@@ -892,6 +1062,7 @@ acc._recalcFromBase();
           showChip('saveChip','Init error','err');
         }
       })();
+
 
 
     </script>
