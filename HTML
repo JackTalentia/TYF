@@ -97,20 +97,21 @@
       <div class="bar"><span id="prog"></span></div>
       <h2>
         <span class="title-left">
-          <button class="btn-circle" title="Menu" aria-label="Menu" onclick="toggleDrawer(true)">☰</button>
-          <span>Info <span id="badge" class="chip"></span></span>
+          <span>Info</span>
         </span>
         <span style="display:flex; gap:6px;">
-          <button class="btn-circle" title="New group" aria-label="New group" onclick="newGroup()">＋</button>
-          <button class="btn-circle" title="Refresh" aria-label="Refresh" onclick="refreshData()">↻</button>
+          <button class="btn-circle" title="Menu" aria-label="Menu" onclick="toggleDrawer(true)">☰</button>
         </span>
       </h2>
+
+
 
       <div class="meta"><strong id="meta-group"></strong></div>
       <div class="meta meta-small">Edit and save details for this group.</div>
 
       <!-- Overview -->
       <div id="section-overview">
+        <div class="field"><label>Pick a group</label><select id="GroupPicker"></select></div>
         <div class="field"><label>Group</label><input id="Group" type="text" placeholder="Enter group name"></div>
         <div class="row-2">
           <div class="field"><label>Arrival</label><input id="Arrival" type="date"></div>
@@ -263,10 +264,47 @@
       function step(p){ document.getElementById('prog').style.width = p + '%'; }
 
       function updateRemaining(){
-      const due = parseFloat(document.getElementById('sumTotalDue')?.textContent || '0') || 0;
-      const scheduled = parseFloat(document.getElementById('sumAmt')?.textContent || '0') || 0;
-      const el = document.getElementById('sumRemaining');
-      if (el) el.textContent = (due - scheduled).toFixed(2);
+        const due = Number(cleanNumber(document.getElementById('sumTotalDue')?.textContent)) || 0;
+        const scheduled = Number(cleanNumber(document.getElementById('sumAmt')?.textContent)) || 0;
+        const el = document.getElementById('sumRemaining');
+        if (el) el.textContent = fmt2(due - scheduled);
+      }
+
+      function initGroupPicker(list){
+        const sel = document.getElementById('GroupPicker');
+        if (!sel) return;
+
+        sel.innerHTML = '';
+
+        // NEW option first
+        sel.appendChild(new Option('➕ New group…', '__NEW__'));
+
+        // Sorted groups (server already sorted; this is just a safety net)
+        const groups = Array.from(new Set((list || [])
+          .map(s => String(s || '').trim())
+          .filter(Boolean)))
+          .sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
+
+        groups.forEach(g => sel.appendChild(new Option(g, g)));
+
+        // Selection logic
+        if (currentGroupName && groups.includes(currentGroupName)) {
+          sel.value = currentGroupName;
+        } else if (!currentGroupName) {
+          sel.value = '__NEW__'; // default to New if nothing selected yet
+        }
+
+        sel.onchange = function(){
+          if (sel.value === '__NEW__') {
+            currentGroupName = '';
+            newGroup(); // clears UI, shows NEW badge
+            return;     // no boot() — nothing to load yet
+          }
+          currentGroupName = sel.value || '';
+          document.getElementById('meta-group').textContent = currentGroupName || '(new)';
+          document.getElementById('adminId').textContent = currentGroupName ? ('Group: ' + currentGroupName) : '';
+          boot(); // load data for picked group
+        };
       }
 
 
@@ -282,6 +320,13 @@
       function dMonFromIso(iso){ const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); if(!m) return ''; const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return `${parseInt(m[3],10)} ${months[parseInt(m[2],10)-1]}`; }
       function cleanNumber(v){ const n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?'':n; }
       function fillSelect(el, options, selected){ el.innerHTML=''; el.appendChild(new Option('', '')); options.forEach(o=>el.appendChild(new Option(o,o))); if(selected && options.includes(selected)) el.value=selected; }
+
+      // format 1,234.56 for display (no £ sign)
+      const GBP_FMT = new Intl.NumberFormat('en-GB', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      function fmt2(n){ return GBP_FMT.format(Number(n) || 0); }
 
       /* New group (clear) */
       function newGroup(){
@@ -309,7 +354,7 @@
         document.getElementById('sumPct').textContent = '0%';
         document.getElementById('sumAmt').textContent = '0.00';
         clearPaymentsUI();
-        document.getElementById('meta-group').textContent='(new)'; const badge=document.getElementById('badge'); badge.style.display='inline-block'; badge.textContent='NEW';
+        document.getElementById('meta-group').textContent='(new)';
       }
 
       /* -------- Sub-groups -------- */
@@ -482,7 +527,7 @@
           const d = dueEl.value ? dMonFromIso(dueEl.value) : '';
           const parts = [];
           if (!isNaN(p)) parts.push(`${Math.round(p)}%`);
-          if (!isNaN(a)) parts.push(`(£${a.toFixed(2)})`);
+          if (!isNaN(a)) parts.push(`(£${fmt2(a)})`);
           let text = '';
           if (parts.length) text = ' • ' + parts.join(' ');
           if (d) text += ` • ${d}`;
@@ -551,9 +596,9 @@ acc._recalcFromBase();
           if (!isNaN(p)) pct += p; if (!isNaN(a)) amt += a;
         });
         const base = currentTotal();
-        document.getElementById('sumTotalDue').textContent = base ? base.toFixed(2) : '0.00';
+        document.getElementById('sumTotalDue').textContent = fmt2(base);
         document.getElementById('sumPct').textContent = `${Math.round(pct)}%`;
-        document.getElementById('sumAmt').textContent = amt.toFixed(2);
+        document.getElementById('sumAmt').textContent = fmt2(amt);
         updateRemaining(); // NEW
       }
 
@@ -568,114 +613,130 @@ acc._recalcFromBase();
 
       /* -------- Data IO -------- */
       function boot(){
-        LOG('boot start', {originalGroupName, logisticsRow});
-        step(5);
-        document.getElementById('meta-group').textContent = currentGroupName || '(new)';
-        document.getElementById('adminId').textContent = currentGroupName ? ('Group: ' + currentGroupName) : '';
-        const badge = document.getElementById('badge'); badge.style.display='inline-block'; badge.textContent = currentGroupName ? 'EDIT' : 'NEW';
+        try{
+          LOG('boot start', {originalGroupName, logisticsRow});
+          step(5);
 
-        // init selects
-        fillSelect(document.getElementById('Deal Status'), STATUS_OPTIONS, '');
-        fillSelect(document.getElementById('Type'), TYPE_OPTIONS, '');
-        fillSelect(document.getElementById('Source'), SOURCE_OPTIONS, '');
-        fillSelect(document.getElementById('Board'), BOARD_OPTIONS, '');
-        fillSelect(document.getElementById('Accommodation Status'), ACC_STATUS_OPTS, '');
-        fillSelect(document.getElementById('Booking Method'), BOOKING_METHOD_OPTS, '');
-        document.getElementById('Charge Type').value = 'Peak';
+          // Header bits
+          document.getElementById('meta-group').textContent = currentGroupName || '(new)';
+          document.getElementById('adminId').textContent = currentGroupName ? ('Group: ' + currentGroupName) : '';
+          
+          // Static selects (safe to run every time)
+          fillSelect(document.getElementById('Deal Status'), STATUS_OPTIONS, '');
+          fillSelect(document.getElementById('Type'), TYPE_OPTIONS, '');
+          fillSelect(document.getElementById('Source'), SOURCE_OPTIONS, '');
+          fillSelect(document.getElementById('Board'), BOARD_OPTIONS, '');
+          fillSelect(document.getElementById('Accommodation Status'), ACC_STATUS_OPTS, '');
+          fillSelect(document.getElementById('Booking Method'), BOOKING_METHOD_OPTS, '');
+          const ct = document.getElementById('Charge Type'); if (ct) ct.value = 'Peak';
 
-        // Supplier list from Accom
-        google.script.run.withSuccessHandler(list=>{
-          LOG('Accom list size:', (list||[]).length);
-          fillSelect(document.getElementById('Supplier'), list||[], '');
-        }).getAccomList();
+          // Supplier list from Accom
+          google.script.run.withSuccessHandler(list=>{
+            LOG('Accom list size:', (list||[]).length);
+            fillSelect(document.getElementById('Supplier'), list||[], '');
+          }).getAccomList();
 
-        step(15);
+          step(15);
 
-        // Resolve Info row from Logistics!AA, fallback to name
-        google.script.run.withSuccessHandler(function(infoRow){
-          LOG('Resolved Info row', infoRow);
-          step(35);
-          if (!infoRow || infoRow < 2) { step(100); return; }
+          // ---- Lookup by selected group (not Logistics) ----
+          var gp = document.getElementById('GroupPicker');
+          var nameForLookup = ((gp && gp.value) || currentGroupName || '').trim();
 
-          // Load Info row -> object
-          google.script.run.withSuccessHandler(function(obj){
-            if (!obj || obj.__empty || obj.__error) { LOG('Info object empty/err', obj); step(100); return; }
+          if (nameForLookup === '__NEW__') { step(100); return; }
+          
+          if (!nameForLookup){
+            LOG('No group selected yet; stopping boot');
+            step(100);
+            return;
+          }
 
-            // Fill UI from object (already ISO/number normalized)
-            document.getElementById('Group').value       = obj['Group'] || currentGroupName || '';
-            document.getElementById('Arrival').value     = obj['Arrival'] || '';
-            document.getElementById('Departure').value   = obj['Departure'] || '';
-            document.getElementById('Deal Status').value = obj['Deal Status'] || '';
-            document.getElementById('Type').value        = obj['Type'] || '';
-            document.getElementById('Source').value      = obj['Source'] || '';
-            document.getElementById('Hubspot Link').value= obj['Hubspot Link'] || '';
+          google.script.run.withSuccessHandler(function(infoRow){
+            LOG('Resolved Info row (by group)', infoRow);
+            step(35);
+            if (!infoRow || infoRow < 2) { step(100); return; }
 
-            // Supplier / method
-            document.getElementById('Supplier').value = obj['Accommodation'] || '';
-            document.getElementById('Booking Method').value = obj['Booking Method'] || '';
-            document.getElementById('Board').value = obj['Board'] || '';
-            document.getElementById('Extra Information').value = obj['Extra Information'] || '';
-            document.getElementById('Accommodation Status').value = obj['Accommodation Status'] || '';
-            document.getElementById('Deposit Date').value = obj['Deposit Date'] || '';
-            document.getElementById('Deposit Amount').value = obj['Deposit %'] || '';
-            document.getElementById('Balance Date').value = obj['Balance Date'] || '';
-            document.getElementById('Balance Amount').value = obj['Balance %'] || '';
+            // Load Info row -> object
+            google.script.run.withSuccessHandler(function(obj){
+              if (!obj || obj.__empty || obj.__error) { LOG('Info object empty/err', obj); step(100); return; }
 
-            // Finance
-            document.getElementById('Admin %').value = obj['Admin Charge %'] || '';
-            document.getElementById('Additional Activity Charge (pp)').value = obj['Additional Activity Charge'] || '';
-            document.getElementById('Other Charges (Description)').value = obj['Other Charges Description'] || '';
-            document.getElementById('Other Charges (Amount)').value = obj['Other Charges Amount'] || '';
-            document.getElementById('Discount £ (pp)').value = obj['Discount £ (per person)'] || '';
-            document.getElementById('Discount %').value = obj['Discount % (per booking)'] || '';
-            document.getElementById('Free Places').value = obj['Free Places'] || '';
-            document.getElementById('Xero Invoice Number').value = obj['Xero Invoice'] || '';
-            const offPeak = (String(obj['Charge Type']).toLowerCase()==='off peak');
-            document.getElementById('Charge Type').value = offPeak ? 'Off Peak' : 'Peak';
+              // Overview
+              document.getElementById('Group').value       = obj['Group'] || currentGroupName || '';
+              document.getElementById('Arrival').value     = obj['Arrival'] || '';
+              document.getElementById('Departure').value   = obj['Departure'] || '';
+              document.getElementById('Deal Status').value = obj['Deal Status'] || '';
+              document.getElementById('Type').value        = obj['Type'] || '';
+              document.getElementById('Source').value      = obj['Source'] || '';
+              document.getElementById('Hubspot Link').value= obj['Hubspot Link'] || '';
 
-            // Sub groups
-            document.getElementById('Prefix').value = obj['Prefix'] || '';
-            const sgPairs=[]; for(let i=1;i<=MAX_GROUPS;i++){ const p=obj['P'+i], l=obj['L'+i]; if((p!==''&&p!=null)||(l!==''&&l!=null)) sgPairs.push([String(p||''),String(l||'')]); }
-            rebuildSgRows(sgPairs.length?sgPairs:[['',''],['','']]);
+              // Accommodation
+              document.getElementById('Supplier').value = obj['Accommodation'] || '';
+              document.getElementById('Booking Method').value = obj['Booking Method'] || '';
+              document.getElementById('Board').value = obj['Board'] || '';
+              document.getElementById('Extra Information').value = obj['Extra Information'] || '';
+              document.getElementById('Accommodation Status').value = obj['Accommodation Status'] || '';
+              document.getElementById('Deposit Date').value = obj['Deposit Date'] || '';
+              document.getElementById('Deposit Amount').value = obj['Deposit %'] || '';
+              document.getElementById('Balance Date').value = obj['Balance Date'] || '';
+              document.getElementById('Balance Amount').value = obj['Balance %'] || '';
 
-            step(65);
+              // Finance
+              document.getElementById('Admin %').value = obj['Admin Charge %'] || '';
+              document.getElementById('Additional Activity Charge (pp)').value = obj['Additional Activity Charge'] || '';
+              document.getElementById('Other Charges (Description)').value = obj['Other Charges Description'] || '';
+              document.getElementById('Other Charges (Amount)').value = obj['Other Charges Amount'] || '';
+              document.getElementById('Discount £ (pp)').value = obj['Discount £ (per person)'] || '';
+              document.getElementById('Discount %').value = obj['Discount % (per booking)'] || '';
+              document.getElementById('Free Places').value = obj['Free Places'] || '';
+              document.getElementById('Xero Invoice Number').value = obj['Xero Invoice'] || '';
+              const offPeak = (String(obj['Charge Type']).toLowerCase()==='off peak');
+              document.getElementById('Charge Type').value = offPeak ? 'Off Peak' : 'Peak';
 
-            // Payments base (try Total Due sheet, else infer)
-            google.script.run.withSuccessHandler(function(totalDue){
-              const prefer = ['Total Due','Payments Base','Total','Booking Total','Total Amount','Balance Due','Total Due (£)'];
-              let base = ''; if (totalDue) base = totalDue;
-              const baseNum = base!=='' ? Number(String(base).replace(/[^\d.\-]/g,'')) : 0;
-              document.getElementById('pay_current_total').value = baseNum ? baseNum.toFixed(2) : '';
-              document.getElementById('sumTotalDue').textContent = baseNum.toFixed(2);
-              updateRemaining(); // NEW: keep "£ Remaining" correct immediately on load
+              // Subgroups
+              document.getElementById('Prefix').value = obj['Prefix'] || '';
+              const sgPairs=[]; for(let i=1;i<=MAX_GROUPS;i++){ const p=obj['P'+i], l=obj['L'+i]; if((p!==''&&p!=null)||(l!==''&&l!=null)) sgPairs.push([String(p||''),String(l||'')]); }
+              rebuildSgRows(sgPairs.length?sgPairs:[['',''],['','']]);
 
-              // Load Payments
-              clearPaymentsUI();
-              if (currentGroupName) {
-                google.script.run.withSuccessHandler(function(res){
-                  const lines = (res && res.lines) ? res.lines : [];
-                  LOG('Payments lines:', lines.length);
-                  lines.forEach(x=>{
-                    addPaymentAcc(
-                      '', // schedule by £; user can type % to back-calc
-                      (x.amount ===''||x.amount ==null)?'':Number(x.amount).toFixed(2),
-                      isoFromAny(x.dateDue),
-                      isoFromAny(x.datePaid)
-                    );
-                  });
-                  updatePaymentTotals();
-                  step(100);
-                }).getPayments(currentGroupName);
-              } else {
-                updatePaymentTotals(); step(100);
-              }
-            }).getTotalDue(currentGroupName);
+              step(65);
 
-          }).getInfoObjByRow(infoRow);
-        }).getInfoRowFromLogistics(logisticsRow, originalGroupName);
+              // Payments base + payments
+              google.script.run.withSuccessHandler(function(totalDue){
+                const baseNum = totalDue!=='' ? Number(String(totalDue).replace(/[^\d.\-]/g,'')) : 0;
+                document.getElementById('pay_current_total').value = baseNum ? baseNum.toFixed(2) : '';
+                document.getElementById('sumTotalDue').textContent = fmt2(baseNum);
+                updateRemaining();
+
+                clearPaymentsUI();
+                if (nameForLookup) {
+                  google.script.run.withSuccessHandler(function(res){
+                    const lines = (res && res.lines) ? res.lines : [];
+                    LOG('Payments lines:', lines.length);
+                    lines.forEach(x=>{
+                      addPaymentAcc(
+                        '',
+                        (x.amount ===''||x.amount ==null)?'':Number(x.amount).toFixed(2),
+                        isoFromAny(x.dateDue),
+                        isoFromAny(x.datePaid)
+                      );
+                    });
+                    updatePaymentTotals();
+                    step(100);
+                  }).getPayments(nameForLookup);
+                } else {
+                  updatePaymentTotals(); step(100);
+                }
+              }).getTotalDue(nameForLookup);
+
+            }).getInfoObjByRow(infoRow);
+
+          }).getInfoRowForGroup(nameForLookup);
+
+        }catch(err){
+          console.error('boot() crashed:', err);
+          showChip('saveChip','Script error','err');
+          step(100);
+        }
       }
 
-      function refreshData(){ currentGroupName = document.getElementById('Group').value || currentGroupName; boot(); showChip('saveChip','Row refreshed','ok'); }
 
       function gatherPayload(){
         const p={};
@@ -776,17 +837,50 @@ acc._recalcFromBase();
 
       // Boot
       (function init(){
-        document.getElementById('m-overview').classList.add('active');
-        ['Deal Status','Type','Source','Board','Accommodation Status'].forEach(id=>{
-          const opts = { 'Deal Status':STATUS_OPTIONS, 'Type':TYPE_OPTIONS, 'Source':SOURCE_OPTIONS, 'Board':BOARD_OPTIONS, 'Accommodation Status':ACC_STATUS_OPTS }[id];
-          fillSelect(document.getElementById(id), opts, '');
-        });
-        fillSelect(document.getElementById('Booking Method'), BOOKING_METHOD_OPTS, '');
+        try{
+          // Make sure burger menu works even if data later fails
+          if (document.getElementById('m-overview')) {
+            document.getElementById('m-overview').classList.add('active');
+          }
 
-        // Ping and then boot sequence
-        google.script.run.withSuccessHandler(r=>{ LOG('ping', r); }).ping();
-        boot();
+          // Fill static dropdowns immediately (so UI doesn’t depend on async)
+          ['Deal Status','Type','Source','Board','Accommodation Status'].forEach(id=>{
+            const opts = { 'Deal Status':STATUS_OPTIONS, 'Type':TYPE_OPTIONS, 'Source':SOURCE_OPTIONS, 'Board':BOARD_OPTIONS, 'Accommodation Status':ACC_STATUS_OPTS }[id];
+            const el = document.getElementById(id);
+            if (el) fillSelect(el, opts, '');
+          });
+          const bm = document.getElementById('Booking Method');
+          if (bm) fillSelect(bm, BOOKING_METHOD_OPTS, '');
+
+          // ping (non-blocking)
+          google.script.run.withSuccessHandler(r=>{ LOG('ping', r); }).ping();
+
+          // Get groups -> build picker -> set default -> THEN boot
+          google.script.run.withSuccessHandler(function(list){
+            initGroupPicker(list || []);
+
+            // Default selection: originalGroupName, else first item
+            const sel = document.getElementById('GroupPicker');
+            if (!currentGroupName) {
+              if (originalGroupName && list && list.indexOf(originalGroupName) > -1) {
+                currentGroupName = originalGroupName;
+                if (sel) sel.value = originalGroupName;
+              } else if (list && list.length) {
+                currentGroupName = list[0];
+                if (sel) sel.value = currentGroupName;
+              }
+            }
+
+            boot(); // now safe: picker exists and has a value
+          }).getInfoGroups();
+
+        }catch(err){
+          console.error('init() crashed:', err);
+          showChip('saveChip','Init error','err');
+        }
       })();
+
+
     </script>
   </body>
 </html>
