@@ -78,7 +78,6 @@
         <div class="field">
           <label>Find group</label>
           <div class="search-wrap">
-            <input type="search" id="groupSearch" placeholder="Type to filter…" oninput="filterSelect('group')">
             <select id="groupSelect" onchange="onGroupChosen()"></select>
           </div>
         </div>
@@ -165,7 +164,6 @@
             <label>Add activity</label>
             <div class="add-row">
               <div class="search-wrap">
-                <input type="search" id="activitySearch" placeholder="Search activities…" oninput="filterSelect('activity')">
                 <select id="activityPicker"></select>
               </div>
               <button class="btn-icon" type="button" aria-label="Add activity" title="Add" onclick="addItem()">+</button>
@@ -193,21 +191,6 @@
 
       // Accordion: open one, close others
       function setupAccordion(){ const sections = document.querySelectorAll('details.section'); sections.forEach(d => d.addEventListener('toggle', ()=>{ if (d.open) sections.forEach(o => { if (o !== d) o.open = false; }); })); }
-
-      // Searchable selects (activities & open panel)
-      function filterSelect(kind){
-        if (kind==='activity'){
-          const q = (document.getElementById('activitySearch').value||'').toLowerCase();
-          const all = (cache.lists && cache.lists.activities) || [];
-          const chosen = new Set(state.items.map(x=>x.name));
-          const filtered = all.filter(x=>!chosen.has(x) && x.toLowerCase().includes(q));
-          fillSelect(document.getElementById('activityPicker'), filtered, '');
-        } else if (kind==='group'){
-          const q = (document.getElementById('groupSearch').value||'').toLowerCase();
-          const filtered = cache.groupsAll.filter(g => g.toLowerCase().includes(q));
-          fillSelect(document.getElementById('groupSelect'), filtered, '');
-        }
-      }
 
       //Board Options
       function initBoardSelect(options, savedValue) {
@@ -292,12 +275,13 @@
         fillSelect(document.getElementById('breakfastTime'), timeList, vals.breakfastTime);
         fillSelect(document.getElementById('arrivalTime'),   timeList, vals.arrivalTime);
         fillSelect(document.getElementById('departureTime'), timeList, vals.departureTime);
+        fillSelect(document.getElementById('activityPicker'), lists.activities, '');
 
         // Activities
         state.items = Array.isArray(items) ? items.slice() : [];
-        filterSelect('activity');
         renderList();
         showChip('saveChip', 'Loaded ✓', 'ok');
+
       }
 
       // Money & percent helpers
@@ -324,6 +308,8 @@
           fillSelect(document.getElementById('breakfastTime'), t, defaults.breakfastTime);
           fillSelect(document.getElementById('arrivalTime'),   t, defaults.arrivalTime);
           fillSelect(document.getElementById('departureTime'), t, defaults.departureTime);
+          fillSelect(document.getElementById('activityPicker'), lists.activities, '');
+          
 
           // Defaults (new quote mode)
           document.getElementById('groupName').value = defaults.groupName || '';
@@ -347,7 +333,6 @@
           (Array.isArray(defaults.selfLedActivities)?defaults.selfLedActivities:[]).forEach(n=>{ if(n) set.set(n,true); });
           state.items = Array.from(set, ([name,selfLed])=>({name,selfLed}));
 
-          filterSelect('activity');
           renderList();
 
           // Open panel initial fill
@@ -378,8 +363,8 @@
           fillSelect(document.getElementById('breakfastTime'), lists.times, keep.breakfast);
           fillSelect(document.getElementById('arrivalTime'), lists.times, keep.arrTime);
           fillSelect(document.getElementById('departureTime'), lists.times, keep.depTime);
+          fillSelect(document.getElementById('activityPicker'), lists.activities, '');
           fillSelect(document.getElementById('groupSelect'), cache.groupsAll, document.getElementById('groupSelect').value);
-          filterSelect('activity');
           showChip('saveChip', 'Lists synced', 'ok');
         }).getSidebarInit(true);
       }
@@ -450,19 +435,27 @@
         const order=Array.from(container.querySelectorAll('.item')).map(el=>el.dataset.name);
         const map=new Map(state.items.map(it=>[it.name,it]));
         state.items=order.map(n=>map.get(n)).filter(Boolean);
-        filterSelect('activity');
       }
 
-      function addItem(){
-        const sel=document.getElementById('activityPicker');
-        const v=sel.value||''; if(!v) return;
-        if(!state.items.some(x=>x.name===v)) state.items.push({ name:v, selfLed:false });
-        renderList(); filterSelect('activity');
+      function addItem() {
+        const sel = document.getElementById('activityPicker');
+        if (!sel) return;
+
+        const v = sel.value ? sel.value.trim() : '';
+        if (!v) return;
+
+        // Only add if not already present
+        if (!state.items.some(x => x.name === v)) {
+          state.items.push({ name: v, selfLed: false });
+          renderList();        // 👈 update the visible activities list
+          // sel.value = '';    // 👈 optional: clear the picker after adding
+        }
       }
+
 
       function removeItem(value){
         state.items = state.items.filter(x=>x.name!==value);
-        renderList(); filterSelect('activity');
+        renderList();
       }
 
       function toggleSelfLed(value){
