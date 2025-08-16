@@ -194,7 +194,7 @@ function getVersionsForGroup(groupName){
 function loadQuoteByVersion(timestampISO){
   const sh = getQuotesSheet_();
   const map = headerIndexMap_(sh);
-  const colTs = 1; // ✅ Column A is Timestamp
+  const colTs = 1; // Column A = Timestamp
   const rows = Math.max(0, sh.getLastRow()-1);
   if (!rows) return { ok:false, message:'No data' };
 
@@ -212,69 +212,95 @@ function loadQuoteByVersion(timestampISO){
   const get = (name) => row[(map[name]-1)];
   const has = (name) => Object.prototype.hasOwnProperty.call(map, name);
   const getAny = (names) => { for (const n of names) if (has(n)) return get(n); return ''; };
+  const splitList = (s) => String(s ?? '')
+    .split(',')
+    .map(x => x.trim())
+    .filter(x => x.length > 0);
 
-  const v = { };
-  v.groupName = has('group name') ? (get('group name')||'') : '';
-  v.participants = has('participants') ? Number(get('participants')||0) : 0;
-  v.leaders = has('leaders') ? Number(get('leaders')||0) : 0;
-  v.freePlaces = has('free places') ? Number(get('free places')||0) : 0;
-  v.subGroups = has('sub groups') ? Number(get('sub groups')||0) : 1;
+  const v = {};
+  v.groupName       = has('group name') ? (get('group name')||'') : '';
+  v.participants    = has('participants') ? Number(get('participants')||0) : 0;
+  v.leaders         = has('leaders') ? Number(get('leaders')||0) : 0;
+  v.freePlaces      = has('free places') ? Number(get('free places')||0) : 0;
+  v.subGroups       = has('sub groups') ? Number(get('sub groups')||0) : 1;
 
   v.accommodationProvider = has('accommodation provider') ? (get('accommodation provider')||'') : '';
-  v.bookingMethod = has('booking method') ? (get('booking method')||'') : '';
-  v.type = has('type') ? (get('type')||'') : '';
-  v.board = has('board') ? (get('board') || '') : '';
+  v.bookingMethod         = has('booking method') ? (get('booking method')||'') : '';
+  v.type                  = has('type') ? (get('type')||'') : '';
+  v.board                 = has('board') ? (get('board') || '') : '';
 
   v.activityTransport = has('activity transport') ? Number(get('activity transport')||0) : 0;
-  v.returnTravel = has('return travel') ? (get('return travel')||'') : '';
+  v.returnTravel      = has('return travel') ? (get('return travel')||'') : '';
 
-  v.otherCharges = has('other charges') ? (get('other charges')||'') : '';
+  v.otherCharges     = has('other charges') ? (get('other charges')||'') : '';
   v.otherChargesDesc = has('other charges description') ? (get('other charges description')||'') : '';
-  v.adminChargePct = has('admin charge') ? (get('admin charge')||'') : '';
-  v.discountPct = has('discount %') ? (get('discount %')||'') : '';
-  v.discountGBP = has('discount £') ? (get('discount £')||'') : '';
-  v.chargeType = has('charge type') ? (get('charge type')||'') : '';
+  v.adminChargePct   = has('admin charge') ? (get('admin charge')||'') : '';
+  v.discountPct      = has('discount %') ? (get('discount %')||'') : '';
+  v.discountGBP      = has('discount £') ? (get('discount £')||'') : '';
+  v.chargeType       = has('charge type') ? (get('charge type')||'') : '';
 
-  const arrDate = has('arrival') ? get('arrival') : '';
-  v.arrival = arrDate instanceof Date ? toISO_(arrDate) : (arrDate||'');
-  v.arrivalTime = has('arrival time') ? fmtTimeString_(get('arrival time')) : '';
+  const arrDate   = has('arrival') ? get('arrival') : '';
+  v.arrival       = arrDate instanceof Date ? toISO_(arrDate) : (arrDate||'');
+  v.arrivalTime   = has('arrival time') ? fmtTimeString_(get('arrival time')) : '';
 
-  const depDate = has('departure') ? get('departure') : '';
-  v.departure = depDate instanceof Date ? toISO_(depDate) : (depDate||'');
+  const depDate   = has('departure') ? get('departure') : '';
+  v.departure     = depDate instanceof Date ? toISO_(depDate) : (depDate||'');
   v.departureTime = has('departure time') ? fmtTimeString_(get('departure time')) : '';
 
   v.breakfastTime = has('breakfast time') ? fmtTimeString_(get('breakfast time')) : '';
 
-  const acts = (has('activities') ? (get('activities')||'') : '').toString().split(',').map(s=>s.trim()).filter(Boolean);
-  const sl = (getAny(['self led activities','self led activites'])||'').toString().split(',').map(s=>s.trim()).filter(Boolean);
-  const selfLedSet = new Set(sl);
-  const items = acts.map(name => ({ name, selfLed: selfLedSet.has(name) }));
+  // --- Activities: build from BOTH columns, preserving duplicates ---
+  const actsStr = has('activities') ? (get('activities') || '') : '';
+  const slStr   = getAny(['self led activities','self led activites']) || '';
+
+  const items = [
+    ...splitList(actsStr).map(name => ({ name, selfLed: false })),
+    ...splitList(slStr).map(name   => ({ name, selfLed: true  }))
+  ];
 
   updateMagic_(v.groupName, wanted); // H2 holds the ISO timestamp
   return { ok:true, values:v, items };
 }
 
+
 function saveGroupData(payload){
   try {
-    const p = payload||{}; const v = p.values||{};
+    const p = payload||{}; 
+    const v = p.values||{};
     const sh = getQuotesSheet_();
     const map = headerIndexMap_(sh);
     const width = sh.getLastColumn();
     const row = new Array(width).fill('');
 
-    const base = versionBase_(v.groupName, v.arrival);
-    const vn = nextVersionNumber_(base);
-    const version = `${base}#${vn}`;
+    Logger.log('=== SAVE DEBUG START ===');
+    Logger.log('Incoming v.otherCharges (raw): "%s"', v.otherCharges);
+    Logger.log('parseMoney_(v.otherCharges): %s', parseMoney_(v.otherCharges));
+    Logger.log('Column index for "other charges": %s', map['other charges'] || 'not found');
+    Logger.log('Headers snapshot: %s', JSON.stringify(Object.keys(map)));
 
     const combo = Array.isArray(v.activitiesCombined) ? v.activitiesCombined : [];
-    const allActs = combo.map(o => (o && o.name) ? o.name : (typeof o === 'string' ? o : '')).filter(Boolean);
-    const selfLedActs = combo.filter(o => o && o.selfLed).map(o => o.name).filter(Boolean);
 
-    function put(name, value){ if (Object.prototype.hasOwnProperty.call(map,name)) row[map[name]-1] = value; }
-    function putAny(names, value){ for (const n of names) if (Object.prototype.hasOwnProperty.call(map,n)) { row[map[n]-1] = value; return; } }
+    // ✅ split by self-led; keep duplicates; preserve order in each list
+    const actsNonSelf = combo.filter(o => o && !o.selfLed).map(o => o.name).filter(Boolean);
+    const actsSelf    = combo.filter(o => o &&  o.selfLed).map(o => o.name).filter(Boolean);
+
+    function put(name, value){ 
+      if (Object.prototype.hasOwnProperty.call(map,name)) {
+        row[map[name]-1] = value; 
+        Logger.log('Put "%s" (col %s) = %s', name, map[name], value);
+      }
+    }
+    function putAny(names, value){ 
+      for (const n of names) {
+        if (Object.prototype.hasOwnProperty.call(map,n)) { 
+          row[map[n]-1] = value; 
+          Logger.log('PutAny "%s" (col %s) = %s', n, map[n], value);
+          return; 
+        } 
+      } 
+    }
 
     put('timestamp', new Date());
-
     put('group name', v.groupName||'');
     put('participants', Number(v.participants)||0);
     put('leaders', Number(v.leaders)||0);
@@ -286,10 +312,10 @@ function saveGroupData(payload){
     put('type', v.type||'');
     put('board', v.board || '');
 
-
     put('activity transport', Number(v.activityTransport)||0);
     put('return travel', parseMoney_(v.returnTravel));
 
+    // 👇 This is the key one
     put('other charges', parseMoney_(v.otherCharges));
     put('other charges description', v.otherChargesDesc||'');
     put('admin charge', parsePercent_(v.adminChargePct));
@@ -301,16 +327,22 @@ function saveGroupData(payload){
     put('arrival', toDate_(v.arrival));
     put('arrival time', v.arrivalTime||'');
 
-    putAny(['self led activities','self led activites'], selfLedActs.join(', '));
-
     put('departure', toDate_(v.departure));
     put('departure time', v.departureTime||'');
 
-    put('activities', allActs.join(', '));
+    put('activities', actsNonSelf.join(', '));
+    putAny(['self led activities','self led activites'], actsSelf.join(', '));
+
+    Logger.log('Row array about to append: %s', JSON.stringify(row));
 
     sh.appendRow(row);
 
-    function fmt(name, fmt){ if(Object.prototype.hasOwnProperty.call(map,name)) sh.getRange(sh.getLastRow(), map[name]).setNumberFormat(fmt); }
+    function fmt(name, fmt){ 
+      if(Object.prototype.hasOwnProperty.call(map,name)) {
+        sh.getRange(sh.getLastRow(), map[name]).setNumberFormat(fmt); 
+        Logger.log('Formatted "%s" (col %s) as %s', name, map[name], fmt);
+      }
+    }
     fmt('return travel', CFG.fmtCurrency);
     fmt('other charges', CFG.fmtCurrency);
     fmt('discount £', CFG.fmtCurrency);
@@ -319,10 +351,13 @@ function saveGroupData(payload){
     fmt('arrival', CFG.fmtDate);
     fmt('departure', CFG.fmtDate);
 
-    updateMagic_(v.groupName, version);
+    Logger.log('=== SAVE DEBUG END ===');
+
+    updateMagic_(v.groupName, version); // <-- careful: "version" is undefined here in your snippet
 
     return { ok:true, version };
   } catch(err) {
+    Logger.log('SaveGroupData ERROR: %s', err);
     return { ok:false, message: err && err.message ? err.message : 'Unknown error' };
   }
 }
