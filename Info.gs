@@ -57,6 +57,29 @@ function _A1rowOfGroupInInfo_(group) {
   const idx0 = keys.indexOf(String(group || '').trim());
   return (idx0 === -1) ? -1 : (idx0 + 2);
 }
+
+function getInfoGroups(){
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(INFO_SHEET_NAME);
+  if (!sh) return [];
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+
+  // Read, clean, de-dup, sort case-insensitively
+  const vals = sh.getRange(2, 1, last - 1, 1).getDisplayValues()
+                 .map(r => String(r[0] || '').trim())
+                 .filter(Boolean);
+  const unique = Array.from(new Set(vals));
+  unique.sort((a,b) => a.localeCompare(b, undefined, {sensitivity:'base'}));
+  return unique;
+}
+
+/** Resolve Info row directly from a group name */
+function getInfoRowForGroup(groupName){
+  return _A1rowOfGroupInInfo_(groupName);
+}
+
+
 function _isoFromAny_(v) {
   if (!v) return '';
   if (v instanceof Date) {
