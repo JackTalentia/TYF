@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root{ --ink:#073763; --line:#e8eef6; --bg:#f7fafc; --field-bg:#fbfdff; --focus:#07376322; --radius:14px; --label:10px; }
+      *{ box-sizing:border-box; }
+      body{ font-family:'Comfortaa',system-ui,Arial,sans-serif; color:var(--ink); background:#f7fafc; margin:0; padding:14px; }
+      .card{ background:#fff; border-radius:var(--radius); box-shadow:0 6px 20px rgba(7,55,99,.08); padding:16px 14px; border:1px solid var(--line); }
+      h2{ margin:0 0 8px 0; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+      .field{ margin:10px 0 12px 0; }
+      .field label{ display:block; font-size:var(--label); font-weight:600; margin-bottom:6px; }
+      input[type="text"], textarea, select, input[type="number"], input[type="date"], input[type="search"]{ width:100%; border:1px solid var(--line); background:var(--field-bg); border-radius:12px; padding:9px 10px; font:12px 'Comfortaa',sans-serif; outline:none; transition: box-shadow .15s ease, border-color .15s ease, background .15s ease; }
+      input:focus, textarea:focus, select:focus{ border-color:#b5c8dc; box-shadow:0 0 0 4px var(--focus); background:#fff; }
+      .actions{ display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap; }
+      button{ border:none; border-radius:999px; padding:10px 14px; cursor:pointer; font:13px 'Comfortaa',sans-serif; }
+      .btn-primary{ background:var(--ink); color:#fff; box-shadow:0 6px 14px rgba(7,55,99,.18); }
+      .btn-ghost{ background:transparent; color:var(--ink); }
+      .btn-circle{ width:34px; height:34px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#f3f8ff; border:1px solid var(--line); color:var(--ink); padding:0; }
+      .chip{ font-size:10px; padding:4px 8px; border-radius:999px; border:1px solid var(--line); background:#eef5ff; display:none; }
+      .chip.ok{ background:#e6f8ea; border-color:#bfe8c8; color:#1b6b33; }
+      .chip.err{ background:#fdeeee; border-color:#f6caca; color:#9c1c1c; }
+
+      /* Layout utilities */
+      .row-2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+      .row-60-40{ display:grid; grid-template-columns:3fr 2fr; gap:10px; }
+
+      /* Collapsible sections */
+      details.section{ border:1px solid var(--line); border-radius:12px; margin:10px 0; background:#fbfdff; }
+      details.section > summary{ list-style:none; cursor:pointer; padding:10px 12px; font-weight:700; display:flex; align-items:center; justify-content:space-between; }
+      details.section > summary::after{ content:'+'; font-weight:700; }
+      details.section[open] > summary::after{ content:'−'; }
+      .section-body{ padding:8px 12px 12px 12px; border-top:1px dashed var(--line); }
+
+      /* Top toolbar (New/Open) */
+      .toolbar{ display:flex; align-items:center; gap:8px; }
+      .open-panel{ border:1px dashed var(--line); background:#fbfdff; border-radius:12px; padding:10px; margin:8px 0 4px 0; display:none; }
+
+      /* Activities picker (add + caret menu + drag + search) */
+      .add-row{ display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; margin-bottom:8px; }
+      .add-row .search-wrap{ display:flex; gap:8px; }
+      .list{ display:flex; flex-direction:column; gap:8px; }
+      .item{ background:#f3f8ff; border:1px solid var(--line); border-radius:12px; padding:8px 10px; display:flex; align-items:center; justify-content:space-between; font:12px 'Comfortaa',sans-serif; position:relative; }
+      .item .left{ display:flex; align-items:center; gap:8px; }
+      .handle{ cursor:grab; user-select:none; font-size:16px; line-height:1; }
+      .right{ display:flex; align-items:center; gap:8px; position:relative; }
+      .btn-icon{ width:28px; height:28px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--ink); color:#ink; padding:0; font-weight:700; }
+      .btn-caret{ width:28px; height:28px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; background:#fff; border:1px solid var(--ink); color:#ink; padding:0; font-weight:700; }
+      .menu{ position:absolute; right:0; top:36px; background:#fff; border:1px solid var(--line); border-radius:10px; min-width:160px; box-shadow:0 6px 20px rgba(7,55,99,.12); display:none; z-index:10; }
+      .menu.open{ display:block; }
+      .menu .mi{ display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; background:transparent; border:none; padding:8px 10px; cursor:pointer; font:12px 'Comfortaa',sans-serif; }
+      .menu .mi:hover{ background:#f3f8ff; }
+      .menu .mi.danger{ color:#9c1c1c; }
+      .tag{ font-size:10px; padding:2px 6px; border-radius:999px; border:1px solid var(--line); background:#fff; color:#1b6b33; display:none; }
+      .item.dragging{ opacity:.6; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>
+        <span>Quote Tool</span>
+        <div class="toolbar">
+          <button class="btn-ghost" type="button" onclick="toggleOpenPanel()">Open</button>
+          <button class="btn-circle" title="Sync lists" aria-label="Sync lists" onclick="syncLists()">↻</button>
+        </div>
+      </h2>
+
+      <!-- Open existing quote panel -->
+      <div id="openPanel" class="open-panel">
+        <div class="field">
+          <label>Find group</label>
+          <div class="search-wrap">
+            <input type="search" id="groupSearch" placeholder="Type to filter…" oninput="filterSelect('group')">
+            <select id="groupSelect" onchange="onGroupChosen()"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Version</label>
+          <select id="versionSelect" disabled></select>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-primary" type="button" onclick="loadSelectedVersion()">Load</button>
+          <span class="meta" id="openHint" style="font-size:10px; color:#7890a8;"></span>
+        </div>
+      </div>
+
+      <!-- group -->
+      <details class="section" id="sec-group">
+        <summary>Group</summary>
+        <div class="section-body">
+          <div class="field"><label>Group Name</label><input type="text" id="groupName"></div>
+          <div class="row-2">
+            <div class="field"><label>Participants</label><input type="number" id="participants" min="0" step="1" inputmode="numeric"></div>
+            <div class="field"><label>Leaders</label><input type="number" id="leaders" min="0" step="1" inputmode="numeric"></div>
+          </div>
+          <div class="row-2">
+            <div class="field"><label>Free Places</label><input type="number" id="freePlaces" min="0" step="1" inputmode="numeric"></div>
+            <div class="field"><label>Sub Groups</label><input type="number" id="subGroups" min="0" step="1" inputmode="numeric"></div>
+          </div>
+        </div>
+      </details>
+
+      <!-- accommodation -->
+      <details class="section" id="sec-accom">
+        <summary>Accommodation</summary>
+        <div class="section-body">
+          <div class="field"><label>Accommodation Provider</label><select id="accommodationProvider"></select></div>
+          <div class="field"><label>Booking Method</label><select id="bookingMethod"></select></div>
+          <div class="field"><label>Type</label><select id="type"></select></div>
+        </div>
+      </details>
+
+      <!-- transport -->
+      <details class="section" id="sec-transport">
+        <summary>Transport</summary>
+        <div class="section-body">
+          <div class="field"><label>Activity Transport</label><input type="number" id="activityTransport" min="0" step="1" inputmode="numeric"></div>
+          <div class="field"><label>Return Travel</label><input type="text" id="returnTravel" placeholder="£0.00"></div>
+        </div>
+      </details>
+
+      <!-- financials -->
+      <details class="section" id="sec-financials">
+        <summary>Financials</summary>
+        <div class="section-body">
+          <div class="field"><label>Other Charges</label><input type="text" id="otherCharges" placeholder="£0.00"></div>
+          <div class="field"><label>Other Charges Description</label><input type="text" id="otherChargesDesc"></div>
+          <div class="field"><label>Admin Charge</label><input type="text" id="adminChargePct" placeholder="0.00%"></div>
+          <div class="field"><label>Discount %</label><input type="text" id="discountPct" placeholder="0.00%"></div>
+          <div class="field"><label>Discount £</label><input type="text" id="discountGBP" placeholder="£0.00"></div>
+          <div class="field"><label>Charge Type</label><select id="chargeType"></select></div>
+        </div>
+      </details>
+
+      <!-- settings -->
+      <details class="section" id="sec-settings">
+        <summary>Settings</summary>
+        <div class="section-body">
+          <div class="field"><label>Breakfast Time</label><select id="breakfastTime"></select></div>
+          <div class="row-60-40">
+            <div class="field"><label>Arrival</label><input type="date" id="arrival"></div>
+            <div class="field"><label>Arrival Time</label><select id="arrivalTime"></select></div>
+          </div>
+          <div class="row-60-40">
+            <div class="field"><label>Departure</label><input type="date" id="departure"></div>
+            <div class="field"><label>Departure Time</label><select id="departureTime"></select></div>
+          </div>
+        </div>
+      </details>
+
+      <!-- activities (single section with caret menu per item) -->
+      <details class="section" id="sec-activities">
+        <summary>Activities</summary>
+        <div class="section-body">
+          <div class="field">
+            <label>Add activity</label>
+            <div class="add-row">
+              <div class="search-wrap">
+                <input type="search" id="activitySearch" placeholder="Search activities…" oninput="filterSelect('activity')">
+                <select id="activityPicker"></select>
+              </div>
+              <button class="btn-icon" type="button" aria-label="Add activity" title="Add" onclick="addItem()">+</button>
+            </div>
+            <div id="activitiesList" class="list" aria-live="polite"></div>
+          </div>
+        </div>
+      </details>
+
+      <div class="actions">
+        <button id="saveBtn" class="btn-primary" onclick="save()">Save</button>
+        <span id="saveChip" class="chip">Saved</span>
+        <button class="btn-ghost" onclick="google.script.host.close()">Close</button>
+      </div>
+    </div>
+
+    <script>
+      let cache = { lists: null, defaults: null, groupsAll: [] };
+      // items: [{name: string, selfLed: boolean}]
+      const state = { items: [] };
+
+      const option = (v, selected)=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; if((selected||'')===v) o.selected=true; return o; };
+      function fillSelect(sel, list, selected){ const keep=selected ?? sel.value ?? ''; sel.innerHTML=''; if(!sel.multiple) sel.appendChild(option('', keep)); (list||[]).forEach(v=>sel.appendChild(option(v, keep))); if(list && list.includes(keep)) sel.value = keep; }
+      function showChip(id, text, kind){ const el=document.getElementById(id); el.textContent=text; el.className='chip '+(kind||''); el.style.display='inline-block'; setTimeout(()=>{ el.style.display='none'; }, 1400); }
+
+      // Accordion: open one, close others
+      function setupAccordion(){ const sections = document.querySelectorAll('details.section'); sections.forEach(d => d.addEventListener('toggle', ()=>{ if (d.open) sections.forEach(o => { if (o !== d) o.open = false; }); })); }
+
+      // Searchable selects (activities & open panel)
+      function filterSelect(kind){
+        if (kind==='activity'){
+          const q = (document.getElementById('activitySearch').value||'').toLowerCase();
+          const all = (cache.lists && cache.lists.activities) || [];
+          const chosen = new Set(state.items.map(x=>x.name));
+          const filtered = all.filter(x=>!chosen.has(x) && x.toLowerCase().includes(q));
+          fillSelect(document.getElementById('activityPicker'), filtered, '');
+        } else if (kind==='group'){
+          const q = (document.getElementById('groupSearch').value||'').toLowerCase();
+          const filtered = cache.groupsAll.filter(g => g.toLowerCase().includes(q));
+          fillSelect(document.getElementById('groupSelect'), filtered, '');
+        }
+      }
+
+      // Open panel controls
+      function toggleOpenPanel(){ const p=document.getElementById('openPanel'); p.style.display = (p.style.display==='block') ? 'none' : 'block'; }
+      function onGroupChosen(){
+        const g = document.getElementById('groupSelect').value;
+        const verSel = document.getElementById('versionSelect');
+        verSel.disabled = !g; verSel.innerHTML=''; if(!g) return;
+        google.script.run.withSuccessHandler((versions)=>{ fillSelect(verSel, versions, ''); }).getVersionsForGroup(g);
+      }
+      function loadSelectedVersion(){
+        const v = document.getElementById('versionSelect').value; if(!v) return;
+        const hint = document.getElementById('openHint'); hint.textContent = 'Loading…';
+        google.script.run.withSuccessHandler((res)=>{
+          hint.textContent = '';
+          if(!res || !res.ok){ showChip('saveChip', res && res.message ? res.message : 'Load failed', 'err'); return; }
+          applyLoaded(res.values, res.items);
+          document.getElementById('sec-group').open = true;
+        }).loadQuoteByVersion(v);
+      }
+
+      function applyLoaded(vals, items){
+        // Scalars
+        document.getElementById('groupName').value = vals.groupName || '';
+        document.getElementById('participants').value = vals.participants || '';
+        document.getElementById('leaders').value = vals.leaders || '';
+        document.getElementById('freePlaces').value = vals.freePlaces || '';
+        document.getElementById('subGroups').value = vals.subGroups || 1;
+
+        // Accom
+        fillSelect(document.getElementById('accommodationProvider'), cache.lists.providers, vals.accommodationProvider);
+        fillSelect(document.getElementById('bookingMethod'), cache.lists.bookingMethods, vals.bookingMethod);
+        fillSelect(document.getElementById('type'), cache.lists.types, vals.type);
+
+        // Transport
+        document.getElementById('activityTransport').value = vals.activityTransport || '';
+        document.getElementById('returnTravel').value = vals.returnTravel || '';
+
+        // Financials
+        document.getElementById('otherCharges').value = vals.otherCharges || '';
+        document.getElementById('otherChargesDesc').value = vals.otherChargesDesc || '';
+        document.getElementById('adminChargePct').value = vals.adminChargePct || '';
+        document.getElementById('discountPct').value = vals.discountPct || '';
+        document.getElementById('discountGBP').value = vals.discountGBP || '';
+        fillSelect(document.getElementById('chargeType'), cache.lists.chargeTypes, vals.chargeType);
+
+        // Settings
+        document.getElementById('arrival').value = vals.arrival || '';
+        document.getElementById('departure').value = vals.departure || '';
+        const timeList = cache.lists.times;
+        fillSelect(document.getElementById('breakfastTime'), timeList, vals.breakfastTime);
+        fillSelect(document.getElementById('arrivalTime'),   timeList, vals.arrivalTime);
+        fillSelect(document.getElementById('departureTime'), timeList, vals.departureTime);
+
+        // Activities
+        state.items = Array.isArray(items) ? items.slice() : [];
+        filterSelect('activity');
+        renderList();
+        showChip('saveChip', 'Loaded ✓', 'ok');
+      }
+
+      // Money & percent helpers
+      const cleanMoney = s => (s||'').replace(/[^0-9.]/g,'');
+      const cleanPercent = s => (s||'').replace(/[^0-9.\-]/g,'');
+      function formatMoneyInput(el){ const n=parseFloat(cleanMoney(el.value)); el.value = isNaN(n)?'':'£'+n.toFixed(2); }
+      function formatPercentInput(el){ const n=parseFloat(cleanPercent(el.value)); if(isNaN(n)){ el.value=''; return; } const val=n>1?n.toFixed(2):(n*100).toFixed(2); el.value=val+'%'; }
+      ;['returnTravel','otherCharges','discountGBP'].forEach(id=>{ document.addEventListener('input', e=>{ if(e.target && e.target.id===id) e.target.value = cleanMoney(e.target.value); }); document.addEventListener('blur', e=>{ if(e.target && e.target.id===id) formatMoneyInput(e.target); }, true); });
+      ;['adminChargePct','discountPct'].forEach(id=>{ document.addEventListener('input', e=>{ if(e.target && e.target.id===id) e.target.value = cleanPercent(e.target.value); }); document.addEventListener('blur', e=>{ if(e.target && e.target.id===id) formatPercentInput(e.target); }, true); });
+
+      function boot(){
+        setupAccordion();
+        google.script.run.withSuccessHandler(({lists, defaults})=>{
+          cache.lists = lists; cache.groupsAll = lists.groupNames || []; cache.defaults = defaults;
+
+          // Populate selects
+          const t = lists.times || [];
+          fillSelect(document.getElementById('accommodationProvider'), lists.providers, defaults.accommodationProvider);
+          fillSelect(document.getElementById('bookingMethod'), lists.bookingMethods, defaults.bookingMethod);
+          fillSelect(document.getElementById('type'), lists.types, defaults.type);
+          fillSelect(document.getElementById('chargeType'), lists.chargeTypes, defaults.chargeType);
+          fillSelect(document.getElementById('breakfastTime'), t, defaults.breakfastTime);
+          fillSelect(document.getElementById('arrivalTime'),   t, defaults.arrivalTime);
+          fillSelect(document.getElementById('departureTime'), t, defaults.departureTime);
+
+          // Defaults (new quote mode)
+          document.getElementById('groupName').value = defaults.groupName || '';
+          document.getElementById('participants').value = defaults.participants || '';
+          document.getElementById('leaders').value = defaults.leaders || '';
+          document.getElementById('freePlaces').value = defaults.freePlaces || '';
+          document.getElementById('subGroups').value = defaults.subGroups || 1;
+          document.getElementById('activityTransport').value = defaults.activityTransport || '';
+          document.getElementById('returnTravel').value = defaults.returnTravel || '';
+          document.getElementById('otherCharges').value = defaults.otherCharges || '';
+          document.getElementById('otherChargesDesc').value = defaults.otherChargesDesc || '';
+          document.getElementById('adminChargePct').value = defaults.adminChargePctDisplay || '';
+          document.getElementById('discountPct').value = defaults.discountPctDisplay || '';
+          document.getElementById('discountGBP').value = defaults.discountGBP || '';
+          document.getElementById('arrival').value = defaults.arrival || '';
+          document.getElementById('departure').value = defaults.departure || '';
+
+          // Combined activities built from legacy defaults
+          const set=new Map();
+          (Array.isArray(defaults.activities)?defaults.activities:[]).forEach(n=>{ if(n) set.set(n,false); });
+          (Array.isArray(defaults.selfLedActivities)?defaults.selfLedActivities:[]).forEach(n=>{ if(n) set.set(n,true); });
+          state.items = Array.from(set, ([name,selfLed])=>({name,selfLed}));
+
+          filterSelect('activity');
+          renderList();
+
+          // Open panel initial fill
+          fillSelect(document.getElementById('groupSelect'), cache.groupsAll, '');
+        }).getSidebarInit(false);
+      }
+
+      function syncLists(){
+        google.script.run.withSuccessHandler(({lists})=>{
+          cache.lists = lists; cache.groupsAll = lists.groupNames || cache.groupsAll;
+          const keep = {
+            provider: document.getElementById('accommodationProvider').value,
+            booking: document.getElementById('bookingMethod').value,
+            type: document.getElementById('type').value,
+            chargeType: document.getElementById('chargeType').value,
+            breakfast: document.getElementById('breakfastTime').value,
+            arrTime: document.getElementById('arrivalTime').value,
+            depTime: document.getElementById('departureTime').value
+          };
+          fillSelect(document.getElementById('accommodationProvider'), lists.providers, keep.provider);
+          fillSelect(document.getElementById('bookingMethod'), lists.bookingMethods, keep.booking);
+          fillSelect(document.getElementById('type'), lists.types, keep.type);
+          fillSelect(document.getElementById('chargeType'), lists.chargeTypes, keep.chargeType);
+          fillSelect(document.getElementById('breakfastTime'), lists.times, keep.breakfast);
+          fillSelect(document.getElementById('arrivalTime'), lists.times, keep.arrTime);
+          fillSelect(document.getElementById('departureTime'), lists.times, keep.depTime);
+          fillSelect(document.getElementById('groupSelect'), cache.groupsAll, document.getElementById('groupSelect').value);
+          filterSelect('activity');
+          showChip('saveChip', 'Lists synced', 'ok');
+        }).getSidebarInit(true);
+      }
+
+      function createItem(value, selfLed){
+        const el=document.createElement('div');
+        el.className='item'; el.draggable=true; el.dataset.name=value;
+        el.innerHTML=`
+          <div class="left">
+            <span class="handle" title="Drag to reorder">⋮⋮</span>
+            <span class="lbl"></span>
+            <span class="tag sltag">self‑led</span>
+          </div>
+          <div class="right">
+            <button type="button" class="btn-caret" aria-haspopup="true" aria-expanded="false" title="More">▾</button>
+            <div class="menu" role="menu">
+              <button class="mi" data-action="self">Self led</button>
+              <button class="mi danger" data-action="remove">Remove</button>
+            </div>
+          </div>`;
+        el.querySelector('.lbl').textContent=value;
+        const tag=el.querySelector('.sltag');
+        tag.style.display = selfLed ? 'inline-block' : 'none';
+
+        // drag
+        el.addEventListener('dragstart', ()=>{ el.classList.add('dragging'); });
+        el.addEventListener('dragend', ()=>{ el.classList.remove('dragging'); updateStateFromDom(); });
+        const container=document.getElementById('activitiesList');
+        container.addEventListener('dragover', e=>{
+          e.preventDefault();
+          const after=getDragAfterElement(container, e.clientY);
+          const dragging=container.querySelector('.item.dragging');
+          if(!dragging) return;
+          if(after==null) container.appendChild(dragging); else container.insertBefore(dragging, after);
+        });
+
+        // menu
+        const caret=el.querySelector('.btn-caret');
+        const menu=el.querySelector('.menu');
+        caret.addEventListener('click', (ev)=>{ ev.stopPropagation(); closeAllMenus(); menu.classList.toggle('open'); caret.setAttribute('aria-expanded', menu.classList.contains('open')); });
+        menu.querySelector('[data-action="self"]').addEventListener('click', ()=>{ toggleSelfLed(value); menu.classList.remove('open'); caret.setAttribute('aria-expanded', 'false'); });
+        menu.querySelector('[data-action="remove"]').addEventListener('click', ()=>{ removeItem(value); menu.classList.remove('open'); caret.setAttribute('aria-expanded', 'false'); });
+
+        return el;
+      }
+
+      function closeAllMenus(){ document.querySelectorAll('.menu.open').forEach(m=>m.classList.remove('open')); }
+      document.addEventListener('click', (e)=>{ if(!e.target.closest('.right')) closeAllMenus(); });
+
+      function getDragAfterElement(container, y){
+        const els=[...container.querySelectorAll('.item:not(.dragging)')];
+        return els.reduce((closest, child)=>{
+          const box=child.getBoundingClientRect();
+          const offset=y - box.top - box.height/2;
+          if(offset<0 && offset>closest.offset) return { offset, element: child };
+          else return closest;
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+      }
+
+      function renderList(){
+        const container=document.getElementById('activitiesList');
+        container.innerHTML='';
+        state.items.forEach(({name,selfLed})=> container.appendChild(createItem(name, selfLed)));
+      }
+
+      function updateStateFromDom(){
+        const container=document.getElementById('activitiesList');
+        const order=Array.from(container.querySelectorAll('.item')).map(el=>el.dataset.name);
+        const map=new Map(state.items.map(it=>[it.name,it]));
+        state.items=order.map(n=>map.get(n)).filter(Boolean);
+        filterSelect('activity');
+      }
+
+      function addItem(){
+        const sel=document.getElementById('activityPicker');
+        const v=sel.value||''; if(!v) return;
+        if(!state.items.some(x=>x.name===v)) state.items.push({ name:v, selfLed:false });
+        renderList(); filterSelect('activity');
+      }
+
+      function removeItem(value){
+        state.items = state.items.filter(x=>x.name!==value);
+        renderList(); filterSelect('activity');
+      }
+
+      function toggleSelfLed(value){
+        const it=state.items.find(x=>x.name===value); if(!it) return;
+        it.selfLed=!it.selfLed;
+        const container=document.getElementById('activitiesList');
+        const row=[...container.querySelectorAll('.item')].find(el=>el.dataset.name===value);
+        if(row){ const tag=row.querySelector('.sltag'); if(tag) tag.style.display = it.selfLed ? 'inline-block' : 'none'; }
+      }
+
+      function save(){
+        const btn=document.getElementById('saveBtn');
+        btn.disabled=true; btn.textContent='Saving…';
+
+        const values={
+          groupName: document.getElementById('groupName').value,
+          participants: document.getElementById('participants').value,
+          leaders: document.getElementById('leaders').value,
+          freePlaces: document.getElementById('freePlaces').value,
+          subGroups: document.getElementById('subGroups').value,
+          accommodationProvider: document.getElementById('accommodationProvider').value,
+          bookingMethod: document.getElementById('bookingMethod').value,
+          type: document.getElementById('type').value,
+          activityTransport: document.getElementById('activityTransport').value,
+          returnTravel: document.getElementById('returnTravel').value,
+          otherCharges: document.getElementById('otherCharges').value,
+          otherChargesDesc: document.getElementById('otherChargesDesc').value,
+          adminChargePct: document.getElementById('adminChargePct').value,
+          discountPct: document.getElementById('discountPct').value,
+          discountGBP: document.getElementById('discountGBP').value,
+          chargeType: document.getElementById('chargeType').value,
+          breakfastTime: document.getElementById('breakfastTime').value,
+          arrival: document.getElementById('arrival').value,
+          arrivalTime: document.getElementById('arrivalTime').value,
+          departure: document.getElementById('departure').value,
+          departureTime: document.getElementById('departureTime').value,
+          activitiesCombined: state.items
+        };
+
+        google.script.run.withSuccessHandler(function(res){
+          btn.disabled=false; btn.textContent='Save';
+          if(res && res.ok) showChip('saveChip', 'Saved ✓ ' + (res.version||''), 'ok');
+          else showChip('saveChip', (res && res.message) ? res.message : 'Save failed','err');
+        }).saveGroupData({ values });
+      }
+
+      // Boot
+      boot();
+    </script>
+  </body>
+</html>
