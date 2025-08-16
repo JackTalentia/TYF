@@ -185,6 +185,19 @@
       // items: [{name: string, selfLed: boolean}]
       const state = { items: [] };
 
+      function genId(){ return 'i_' + Math.random().toString(36).slice(2,10); }
+
+      function toPctInput(val){
+        if (val === '' || val == null) return '';
+        const s = String(val).trim();
+        if (/%$/.test(s)) return s; // already like "5%" -> leave as is
+        const n = Number(s);
+        if (isNaN(n)) return s;     // weird text? just show it
+        const p = (n >= -1 && n <= 1) ? n * 100 : n; // 0.05 -> 5, 10 -> 10
+        const rounded = Math.round(p * 100) / 100;   // 2 dp max
+        return String(rounded).replace(/\.00$/, '') + '%';
+      }
+
       const option = (v, selected)=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; if((selected||'')===v) o.selected=true; return o; };
       function fillSelect(sel, list, selected){ const keep=selected ?? sel.value ?? ''; sel.innerHTML=''; if(!sel.multiple) sel.appendChild(option('', keep)); (list||[]).forEach(v=>sel.appendChild(option(v, keep))); if(list && list.includes(keep)) sel.value = keep; }
       function showChip(id, text, kind){ const el=document.getElementById(id); el.textContent=text; el.className='chip '+(kind||''); el.style.display='inline-block'; setTimeout(()=>{ el.style.display='none'; }, 1400); }
@@ -265,46 +278,52 @@
 
       function applyLoaded(vals, items){
         // Scalars
-        document.getElementById('groupName').value = vals.groupName || '';
-        document.getElementById('participants').value = vals.participants || '';
-        document.getElementById('leaders').value = vals.leaders || '';
-        document.getElementById('freePlaces').value = vals.freePlaces || '';
-        document.getElementById('subGroups').value = vals.subGroups || 1;
+        document.getElementById('groupName').value   = vals.groupName || '';
+        document.getElementById('participants').value= vals.participants || '';
+        document.getElementById('leaders').value     = vals.leaders || '';
+        document.getElementById('freePlaces').value  = vals.freePlaces || '';
+        document.getElementById('subGroups').value   = vals.subGroups || 1;
 
         // Accom
-        fillSelect(document.getElementById('accommodationProvider'), cache.lists.providers, vals.accommodationProvider);
-        fillSelect(document.getElementById('bookingMethod'), cache.lists.bookingMethods, vals.bookingMethod);
-        fillSelect(document.getElementById('type'), cache.lists.types, vals.type);
-        fillSelect(document.getElementById('board'), cache.lists.boardOptions, vals.board);
-
+        fillSelect(document.getElementById('accommodationProvider'), cache.lists.providers,      vals.accommodationProvider);
+        fillSelect(document.getElementById('bookingMethod'),         cache.lists.bookingMethods, vals.bookingMethod);
+        fillSelect(document.getElementById('type'),                  cache.lists.types,          vals.type);
+        fillSelect(document.getElementById('board'),                 cache.lists.boardOptions,   vals.board);
 
         // Transport
         document.getElementById('activityTransport').value = vals.activityTransport || '';
-        document.getElementById('returnTravel').value = vals.returnTravel || '';
+        document.getElementById('returnTravel').value       = vals.returnTravel || '';
 
         // Financials
-        document.getElementById('otherCharges').value = vals.otherCharges || '';
+        document.getElementById('otherCharges').value     = vals.otherCharges || '';
         document.getElementById('otherChargesDesc').value = vals.otherChargesDesc || '';
-        document.getElementById('adminChargePct').value = vals.adminChargePct || '';
-        document.getElementById('discountPct').value = vals.discountPct || '';
-        document.getElementById('discountGBP').value = vals.discountGBP || '';
+        document.getElementById('adminChargePct').value = toPctInput(vals.adminChargePct);
+        document.getElementById('discountPct').value   = toPctInput(vals.discountPct);
+        document.getElementById('discountGBP').value      = vals.discountGBP || '';
         fillSelect(document.getElementById('chargeType'), cache.lists.chargeTypes, vals.chargeType);
 
         // Settings
-        document.getElementById('arrival').value = vals.arrival || '';
+        document.getElementById('arrival').value   = vals.arrival || '';
         document.getElementById('departure').value = vals.departure || '';
         const timeList = cache.lists.times;
         fillSelect(document.getElementById('breakfastTime'), timeList, vals.breakfastTime);
         fillSelect(document.getElementById('arrivalTime'),   timeList, vals.arrivalTime);
         fillSelect(document.getElementById('departureTime'), timeList, vals.departureTime);
-        fillSelect(document.getElementById('activityPicker'), lists.activities, '');
 
-        // Activities
-        state.items = Array.isArray(items) ? items.slice() : [];
+        // Picker list (ensure it’s populated in case lists changed)
+        fillSelect(document.getElementById('activityPicker'), cache.lists.activities, '');
+
+        // Activities (preserve duplicates + self-led)
+        state.items = (Array.isArray(items) ? items : []).map(it => ({
+          id: genId(),
+          name: it.name,
+          selfLed: !!it.selfLed
+        }));
         renderList();
-        showChip('saveChip', 'Loaded ✓', 'ok');
 
+        showChip('saveChip', 'Loaded ✓', 'ok');
       }
+
 
       // Money & percent helpers
       const cleanMoney = s => (s||'').replace(/[^0-9.]/g,'');
@@ -391,14 +410,17 @@
         }).getSidebarInit(true);
       }
 
-      function createItem(value, selfLed){
-        const el=document.createElement('div');
-        el.className='item'; el.draggable=true; el.dataset.name=value;
-        el.innerHTML=`
+      function createItem(item){
+        const el = document.createElement('div');
+        el.className='item'; el.draggable=true;
+        el.dataset.id=item.id;              // ✅ use id
+        el.dataset.name=item.name;
+
+        el.innerHTML = `
           <div class="left">
             <span class="handle" title="Drag to reorder">⋮⋮</span>
             <span class="lbl"></span>
-            <span class="tag sltag">self‑led</span>
+            <span class="tag sltag">self-led</span>
           </div>
           <div class="right">
             <button type="button" class="btn-caret" aria-haspopup="true" aria-expanded="false" title="More">▾</button>
@@ -407,9 +429,10 @@
               <button class="mi danger" data-action="remove">Remove</button>
             </div>
           </div>`;
-        el.querySelector('.lbl').textContent=value;
-        const tag=el.querySelector('.sltag');
-        tag.style.display = selfLed ? 'inline-block' : 'none';
+
+        el.querySelector('.lbl').textContent = item.name;
+        const tag = el.querySelector('.sltag');
+        tag.style.display = item.selfLed ? 'inline-block' : 'none';
 
         // drag
         el.addEventListener('dragstart', ()=>{ el.classList.add('dragging'); });
@@ -423,12 +446,12 @@
           if(after==null) container.appendChild(dragging); else container.insertBefore(dragging, after);
         });
 
-        // menu
-        const caret=el.querySelector('.btn-caret');
-        const menu=el.querySelector('.menu');
+        // caret menu using id
+        const caret = el.querySelector('.btn-caret');
+        const menu  = el.querySelector('.menu');
         caret.addEventListener('click', (ev)=>{ ev.stopPropagation(); closeAllMenus(); menu.classList.toggle('open'); caret.setAttribute('aria-expanded', menu.classList.contains('open')); });
-        menu.querySelector('[data-action="self"]').addEventListener('click', ()=>{ toggleSelfLed(value); menu.classList.remove('open'); caret.setAttribute('aria-expanded', 'false'); });
-        menu.querySelector('[data-action="remove"]').addEventListener('click', ()=>{ removeItem(value); menu.classList.remove('open'); caret.setAttribute('aria-expanded', 'false'); });
+        menu.querySelector('[data-action="self"]').addEventListener('click', ()=>{ toggleSelfLed(item.id); menu.classList.remove('open'); caret.setAttribute('aria-expanded', 'false'); });
+        menu.querySelector('[data-action="remove"]').addEventListener('click', ()=>{ removeItem(item.id); menu.classList.remove('open'); caret.setAttribute('aria-expanded', 'false'); });
 
         return el;
       }
@@ -449,43 +472,36 @@
       function renderList(){
         const container=document.getElementById('activitiesList');
         container.innerHTML='';
-        state.items.forEach(({name,selfLed})=> container.appendChild(createItem(name, selfLed)));
+        state.items.forEach(it => container.appendChild(createItem(it)));
       }
 
       function updateStateFromDom(){
         const container=document.getElementById('activitiesList');
-        const order=Array.from(container.querySelectorAll('.item')).map(el=>el.dataset.name);
-        const map=new Map(state.items.map(it=>[it.name,it]));
-        state.items=order.map(n=>map.get(n)).filter(Boolean);
+        const orderIds = Array.from(container.querySelectorAll('.item')).map(el=>el.dataset.id);
+        const map=new Map(state.items.map(it=>[it.id,it]));
+        state.items = orderIds.map(id => map.get(id)).filter(Boolean);
       }
 
       function addItem() {
         const sel = document.getElementById('activityPicker');
-        if (!sel) return;
-
-        const v = sel.value ? sel.value.trim() : '';
+        const v = sel && sel.value ? sel.value.trim() : '';
         if (!v) return;
 
-        // Only add if not already present
-        if (!state.items.some(x => x.name === v)) {
-          state.items.push({ name: v, selfLed: false });
-          renderList();        // 👈 update the visible activities list
-          // sel.value = '';    // 👈 optional: clear the picker after adding
-        }
-      }
-
-
-      function removeItem(value){
-        state.items = state.items.filter(x=>x.name!==value);
+        // ✅ allow duplicates
+        state.items.push({ id: genId(), name: v, selfLed: false });
         renderList();
       }
 
-      function toggleSelfLed(value){
-        const it=state.items.find(x=>x.name===value); if(!it) return;
-        it.selfLed=!it.selfLed;
-        const container=document.getElementById('activitiesList');
-        const row=[...container.querySelectorAll('.item')].find(el=>el.dataset.name===value);
-        if(row){ const tag=row.querySelector('.sltag'); if(tag) tag.style.display = it.selfLed ? 'inline-block' : 'none'; }
+
+      function removeItem(id){
+        state.items = state.items.filter(x=>x.id !== id);
+        renderList();
+      }
+      function toggleSelfLed(id){
+        const it = state.items.find(x=>x.id === id); if(!it) return;
+        it.selfLed = !it.selfLed;
+        const row = document.querySelector(`.item[data-id="${id}"]`);
+        if (row){ const tag=row.querySelector('.sltag'); if(tag) tag.style.display = it.selfLed ? 'inline-block' : 'none'; }
       }
 
       function save(){
