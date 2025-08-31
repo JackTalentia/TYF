@@ -39,10 +39,7 @@ function ping(){ return 'pong'; }
 function openInfoSidebar(){
   const ss  = SpreadsheetApp.getActiveSpreadsheet();
   const sh  = ss.getActiveSheet();
-  if (!sh || sh.getName() !== LOGISTICS_SHEET_NAME) {
-    SpreadsheetApp.getUi().alert(`Run from '${LOGISTICS_SHEET_NAME}' (active row column A = Group).`);
-    return;
-  }
+  
   const row = sh.getActiveRange().getRow();
   const groupName = String(sh.getRange(row, 1).getDisplayValue() || '').trim();
   const t = HtmlService.createTemplateFromFile('InfoSidebar');
@@ -50,6 +47,7 @@ function openInfoSidebar(){
   t.logRow    = row;
   SpreadsheetApp.getUi().showSidebar(t.evaluate().setTitle('Info'));
 }
+
 
 /* ---------- Utilities ---------- */
 function _ensureSheet_(name, headerRowIndex, headerValues) {
@@ -290,6 +288,8 @@ function buildInfoObjFromMap(map){
     'Type'         : v(7),
     'Source'       : v(8),
     'Hubspot Link' : v(9),
+    'Transport' : v(87),
+
 
     // Col 11 header is misspelled "Acommodation" in the sheet, but index-based read is fine
     'Accommodation' : v(11),
@@ -549,6 +549,8 @@ function saveInfoData(originalName, updated) {
   setC(84, updated['Feedback'] || '');
   setC(85, updated['Learning Outcomes'] || '');
   setC(86, updated['Other Information'] || '');
+  setC(87, updated['Transport'] || '');
+
 
   // Optional: Participants (if you add it to the UI later)
   if (updated['Participants'] !== undefined) setC(72, updated['Participants']);
