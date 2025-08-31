@@ -121,7 +121,16 @@
         <div class="field"><label>Type</label><select id="Type"></select></div>
         <div class="field"><label>Source</label><select id="Source"></select></div>
         <div class="field"><label>Hubspot Link</label><input id="Hubspot Link" type="text" placeholder="https://app.hubspot.com/..."></div>
-
+        <div class="field"><label>Transport</label>
+          <select id="Transport">
+            <option value=""></option>
+            <option>Travel & Activities</option>
+            <option>Activities Only</option>
+            <option>Not Included</option>
+            <option>Travel Only</option>
+            <option>TBC</option>
+          </select>
+        </div>
         <!-- Contacts -->
         <div class="field" style="margin-top:10px;"><label>Contacts</label></div>
         <div id="contactList" class="acc-list"></div>
@@ -301,6 +310,8 @@
       const BOARD_OPTIONS  = ['Room Only','None','Full Board','Half Board','Bed & Breakfast'];
       const ACC_STATUS_OPTS= ['Confirmed','Requested','N/A'];
       const BOOKING_METHOD_OPTS = ['None','TYF to Book','Booking Direct'];
+      const TRANSPORT_OPTIONS = ['Travel & Activities','Activities Only','Not Included','Travel Only','TBC'];
+
 
 
       const LOG = (...a)=>console.log('[InfoUI]', ...a);
@@ -698,6 +709,7 @@ acc._recalcFromBase();
           fillSelect(document.getElementById('Accommodation Status'), ACC_STATUS_OPTS, '');
           fillSelect(document.getElementById('Booking Method'), BOOKING_METHOD_OPTS, '');
           fillSelect(document.getElementById('Accommodation Type'), ACCTYPE_OPTIONS, '');
+          
 
           const ct = document.getElementById('Charge Type'); if (ct) ct.value = 'Peak';
 
@@ -738,6 +750,8 @@ acc._recalcFromBase();
               document.getElementById('Type').value        = obj['Type'] || '';
               document.getElementById('Source').value      = obj['Source'] || '';
               document.getElementById('Hubspot Link').value= obj['Hubspot Link'] || '';
+              document.getElementById('Transport').value = obj['Transport'] || '';
+
 
               // Accommodation
               document.getElementById('Supplier').value = obj['Accommodation'] || '';
@@ -844,6 +858,8 @@ acc._recalcFromBase();
         p['Type']=document.getElementById('Type').value;
         p['Source']=document.getElementById('Source').value;
         p['Hubspot Link']=document.getElementById('Hubspot Link').value;
+        p['Transport'] = document.getElementById('Transport').value;
+
 
         // Supplier + method
         p['Accommodation']=document.getElementById('Supplier').value;
@@ -1030,6 +1046,9 @@ acc._recalcFromBase();
           const bm = document.getElementById('Booking Method');
           if (bm) fillSelect(bm, BOOKING_METHOD_OPTS, '');
 
+          const tr = document.getElementById('Transport');
+          if (tr) fillSelect(tr, TRANSPORT_OPTIONS, '');
+
           const at = document.getElementById('Accommodation Type');
           if (at) fillSelect(at, ACCTYPE_OPTIONS, '');
 
@@ -1040,20 +1059,21 @@ acc._recalcFromBase();
           google.script.run.withSuccessHandler(function(list){
             initGroupPicker(list || []);
 
-            // Default selection: originalGroupName, else first item
+            // Always start in NEW group mode when Info tab first loads
             const sel = document.getElementById('GroupPicker');
-            if (!currentGroupName) {
-              if (originalGroupName && list && list.indexOf(originalGroupName) > -1) {
-                currentGroupName = originalGroupName;
-                if (sel) sel.value = originalGroupName;
-              } else if (list && list.length) {
-                currentGroupName = list[0];
-                if (sel) sel.value = currentGroupName;
-              }
+            if (sel) {
+              sel.value = '__NEW__';
+              currentGroupName = '';
+              newGroup();
+              document.getElementById('meta-group').textContent = '(new)';
             }
 
-            // Only after groups are ready, load headers then boot
-            loadChecklistHeadersThen(boot);
+
+            // Only after groups are ready, load headers
+            loadChecklistHeadersThen(function(){
+              // We’re starting fresh, so just prepare blank UI
+              // No boot() call here
+            });
 
           }).getInfoGroups();
 
