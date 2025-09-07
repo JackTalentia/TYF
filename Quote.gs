@@ -4,7 +4,7 @@
  * - Append-only saves (audit log)
  * - Versions in Column B: FIRST4 + DDMMYYYY + #N
  * - Self-led activities written to the 'Self Led Activities' (or 'Self Led Activites') column
- * - Also writes Group -> 🪄!H1 and Version -> 🪄!H2 on save and on load
+ * - Also writes Group -> 🪄!L1 and Version -> 🪄!L2 on save and on load
  */
 const CFG = {
   accomSheet: 'Accom',
@@ -51,6 +51,27 @@ function readColumn_(sheetName, a1) {
     seen.add(s); out.push(v);
   }
   return out;
+
+/** Resize every slicer on a sheet to cover all used rows, preserving columns. */
+function resizeSlicersToUsedRows_(sheet) {
+  if (!sheet || typeof sheet.getSlicers !== 'function') return; // safety for older runtimes
+  const slicers = sheet.getSlicers();
+  slicers.forEach(slicer => {
+    try {
+      const r = slicer.getRange();
+      if (!r) return;
+      const startRow = r.getRow();
+      const startCol = r.getColumn();
+      const numCols  = r.getNumColumns();
+      const lastRow  = sheet.getLastRow();
+      const numRows  = Math.max(1, lastRow - startRow + 1);
+      slicer.setRange(sheet.getRange(startRow, startCol, numRows, numCols));
+    } catch (e) {
+      Logger.log('resizeSlicersToUsedRows_ error: %s', e);
+    }
+  });
+}
+
 }
 function toHM_(d) { const hh = String(d.getHours()).padStart(2,'0'); const mm = String(d.getMinutes()).padStart(2,'0'); return `${hh}:${mm}`; }
 function fmtTimeString_(v){
@@ -109,11 +130,11 @@ function updateMagic_(groupName, when){
   let sh = ss.getSheetByName('🪄');
   if (!sh) sh = ss.insertSheet('🪄');
 
-  // H1: group name (text)
-  sh.getRange('H1').setValue(groupName || '');
+  // L1: group name (text)
+  sh.getRange('L1').setValue(groupName || '');
 
-  // H2: timestamp as a real Date, formatted for display
-  const cell = sh.getRange('H2');
+  // L2: timestamp as a real Date, formatted for display
+  const cell = sh.getRange('L2');
   const d = (when instanceof Date) ? when : new Date(when);
   if (isNaN(d.getTime())) {            // safety: bad date -> clear cell
     cell.setValue('');
@@ -122,6 +143,7 @@ function updateMagic_(groupName, when){
   cell.setValue(d);                    // write as Date
   cell.setNumberFormat('dd/mm/yyyy hh:mm:ss'); // display like your Quotes sheet
 }
+
 
 
 // === Public API for Sidebar
@@ -372,3 +394,141 @@ function saveGroupData(payload){
     return { ok:false, message: err && err.message ? err.message : 'Unknown error' };
   }
 }
+
+// === Convert current 🪄 + Info write
+function colIndex_(letters) {
+  const s = String(letters || '').toUpperCase().replace(/[^A-Z]/g,'');
+  let n = 0;
+  for (let i = 0; i < s.length; i++) n = n * 26 + (s.charCodeAt(i) - 64);
+  return n || 1;
+}
+
+/**
+ * Convert the latest 🪄 row to Logistics (B:J), and append a mapped row in Info.
+ * @param {{values: object}} payload - same shape as saveGroupData input
+ */
+function convertQuote(payload) {
+  try {
+    const v = (payload && payload.values) || {};
+    const ss = SpreadsheetApp.getActive();
+
+    // Sheets
+    const magic = ss.getSheetByName('🪄');
+    if (!magic) return { ok: false, message: '🪄 sheet not found' };
+
+    const logistics = ss.getSheetByName('Logistics') || ss.insertSheet('Logistics');
+    const info = ss.getSheetByName('Info') || ss.insertSheet('Info');
+
+    // ---------- Prepare rows from 🪄 A2:I (trim trailing blanks) ----------
+    const lastRowAny = magic.getLastRow();
+    if (lastRowAny < 2) return { ok: false, message: 'No data on 🪄 to convert' };
+
+    const n = lastRowAny - 1; // rows from 2..last
+    const block = magic.getRange(2, /*A*/1, n, /*A:I*/9).getValues();
+
+    const isEmptyRow = (r) => r.every(c => c === '' || c === null);
+    let lastNonEmpty = block.length - 1;
+    while (lastNonEmpty >= 0 && isEmptyRow(block[lastNonEmpty])) lastNonEmpty--;
+    if (lastNonEmpty < 0) return { ok:false, message: 'No A:I data to copy' };
+
+    const rowsToCopy = block.slice(0, lastNonEmpty + 1).filter(r => !isEmptyRow(r));
+
+    // ---------- Step 1: Append mapped row in Info FIRST ----------
+    const rowInfo = info.getLastRow() + 1;
+    const A  = colIndex_('A'),  D  = colIndex_('D'),  E  = colIndex_('E');
+    const K  = colIndex_('K'),  L  = colIndex_('L'),  M  = colIndex_('M'), N = colIndex_('N');
+    const U  = colIndex_('U'),  BV = colIndex_('BV'), BW = colIndex_('BW');
+    const CA = colIndex_('CA'), CB = colIndex_('CB'), CC = colIndex_('CC');
+    const AL = colIndex_('AL'), BB = colIndex_('BB'), AM = colIndex_('AM');
+
+    // Base fields
+    info.getRange(rowInfo, A ).setValue(v.groupName || '');
+    info.getRange(rowInfo, D ).setValue(toDate_(v.arrival));
+    info.getRange(rowInfo, E ).setValue(toDate_(v.departure));
+    info.getRange(rowInfo, K ).setValue(v.accommodationProvider || '');
+    info.getRange(rowInfo, L ).setValue(v.bookingMethod || '');
+    info.getRange(rowInfo, M ).setValue(v.type || '');
+    info.getRange(rowInfo, N ).setValue(v.board || '');
+    info.getRange(rowInfo, U ).setValue(v.groupName || '');
+    info.getRange(rowInfo, BV).setValue(parsePercent_(v.adminChargePct));
+    info.getRange(rowInfo, BW).setValue(v.chargeType || '');
+    info.getRange(rowInfo, CA).setValue(parseMoney_(v.discountGBP));
+    info.getRange(rowInfo, CB).setValue(parsePercent_(v.discountPct));
+    info.getRange(rowInfo, CC).setValue(Number(v.freePlaces) || 0);
+
+    // Formats
+    info.getRange(rowInfo, D ).setNumberFormat(CFG.fmtDate);
+    info.getRange(rowInfo, E ).setNumberFormat(CFG.fmtDate);
+    info.getRange(rowInfo, BV).setNumberFormat(CFG.fmtPercent);
+    info.getRange(rowInfo, CB).setNumberFormat(CFG.fmtPercent);
+    info.getRange(rowInfo, CA).setNumberFormat(CFG.fmtCurrency);
+
+    // Transposed arrays from 🪄 (AL -> Info!AL, AM -> Info!BB)
+    const rowsMagic = Math.max(0, magic.getLastRow() - 1);
+    if (rowsMagic > 0) {
+      const alVals = magic.getRange(/*row*/2, AL, rowsMagic, 1).getValues()
+        .flat().filter(x => x !== '' && x !== null);
+      if (alVals.length) info.getRange(rowInfo, AL, 1, alVals.length).setValues([alVals]);
+
+      const amVals = magic.getRange(/*row*/2, AM, rowsMagic, 1).getValues()
+        .flat().filter(x => x !== '' && x !== null);
+      if (amVals.length) info.getRange(rowInfo, BB, 1, amVals.length).setValues([amVals]);
+    }
+
+    // Ensure validation that depends on Info updates before paste
+    SpreadsheetApp.flush();
+
+    // ---------- Step 2: Copy 🪄 A2:I -> Logistics B:J with TIME NORMALIZATION ----------
+    // Identify which destination columns are time columns by header text
+    const headers = logistics.getRange(1, /*B*/2, 1, /*B:J*/9).getValues()[0] || [];
+    const isTimeHeader = (h) => /time/i.test(String(h || '')); // "Arrival Time", "Departure Time", etc.
+    const timeCols = headers.map(isTimeHeader); // bool[9]
+
+    // Helpers to coerce values to pure time fractions (no date part)
+    function timeFractionFromDate(d) {
+      const secs = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
+      return secs / 86400; // fraction of a day
+    }
+    function parseTimeStringToFraction(val) {
+      const s = String(val || '').trim();
+      const m = s.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return val;
+      const h = Number(m[1]), min = Number(m[2]);
+      if (h >= 0 && h < 24 && min >= 0 && min < 60) return (h * 60 + min) / 1440;
+      return val;
+    }
+
+    const normalized = rowsToCopy.map(r => {
+      const out = r.slice();
+      for (let j = 0; j < out.length; j++) {
+        if (!timeCols[j]) continue;               // only adjust time columns
+        const cell = out[j];
+        if (cell === '' || cell === null) continue;
+        if (cell instanceof Date) {
+          out[j] = timeFractionFromDate(cell);    // strip date part -> pure time
+        } else {
+          out[j] = parseTimeStringToFraction(cell); // "HH:mm" -> pure time number
+        }
+      }
+      return out;
+    });
+
+    const destRowLog = logistics.getLastRow() + 1;
+    logistics.getRange(destRowLog, /*B*/2, normalized.length, /*B:J*/9).setValues(normalized);
+
+    SpreadsheetApp.flush();                 // make sure the sheet knows about the new rows
+resizeSlicersToUsedRows_(logistics);    // expand all slicers to cover all used rows
+
+
+    return {
+      ok: true,
+      message: `Converted: Logistics rows ${destRowLog}..${destRowLog + normalized.length - 1}, Info row ${rowInfo}`
+    };
+  } catch (err) {
+    Logger.log('convertQuote ERROR: %s', err && err.stack || err);
+    return { ok: false, message: err && err.message ? err.message : 'Unknown error' };
+  }
+}
+
+
+
