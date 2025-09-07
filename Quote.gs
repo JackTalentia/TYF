@@ -52,25 +52,7 @@ function readColumn_(sheetName, a1) {
   }
   return out;
 
-/** Resize every slicer on a sheet to cover all used rows, preserving columns. */
-function resizeSlicersToUsedRows_(sheet) {
-  if (!sheet || typeof sheet.getSlicers !== 'function') return; // safety for older runtimes
-  const slicers = sheet.getSlicers();
-  slicers.forEach(slicer => {
-    try {
-      const r = slicer.getRange();
-      if (!r) return;
-      const startRow = r.getRow();
-      const startCol = r.getColumn();
-      const numCols  = r.getNumColumns();
-      const lastRow  = sheet.getLastRow();
-      const numRows  = Math.max(1, lastRow - startRow + 1);
-      slicer.setRange(sheet.getRange(startRow, startCol, numRows, numCols));
-    } catch (e) {
-      Logger.log('resizeSlicersToUsedRows_ error: %s', e);
-    }
-  });
-}
+
 
 }
 function toHM_(d) { const hh = String(d.getHours()).padStart(2,'0'); const mm = String(d.getMinutes()).padStart(2,'0'); return `${hh}:${mm}`; }
@@ -475,50 +457,120 @@ function convertQuote(payload) {
       if (amVals.length) info.getRange(rowInfo, BB, 1, amVals.length).setValues([amVals]);
     }
 
-    // Ensure validation that depends on Info updates before paste
-    SpreadsheetApp.flush();
+    // ---------- Step 2: Copy 🪄 A2:I -> Logistics B:J with EXACT DV MATCH for time columns ----------
+    const DataValidationCriteria = SpreadsheetApp.DataValidationCriteria;
 
-    // ---------- Step 2: Copy 🪄 A2:I -> Logistics B:J with TIME NORMALIZATION ----------
-    // Identify which destination columns are time columns by header text
-    const headers = logistics.getRange(1, /*B*/2, 1, /*B:J*/9).getValues()[0] || [];
-    const isTimeHeader = (h) => /time/i.test(String(h || '')); // "Arrival Time", "Departure Time", etc.
-    const timeCols = headers.map(isTimeHeader); // bool[9]
-
-    // Helpers to coerce values to pure time fractions (no date part)
-    function timeFractionFromDate(d) {
-      const secs = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
-      return secs / 86400; // fraction of a day
+    // Normalize a value to "HH:mm" string (no date part)
+    function hhmm(val) {
+      if (val === '' || val === null) return '';
+      if (val instanceof Date) {
+        const h = String(val.getHours()).padStart(2,'0');
+        const m = String(val.getMinutes()).padStart(2,'0');
+        return `${h}:${m}`;
+      }
+      if (typeof val === 'number') {
+        const total = Math.round(val * 1440);
+        const h = String(Math.floor(total / 60) % 24).padStart(2,'0');
+        const m = String(total % 60).padStart(2,'0');
+        return `${h}:${m}`;
+      }
+      const s = String(val).trim();
+      const m = s.match(/^(\d{1,2}):(\d{2})/);
+      return m ? `${m[1].padStart(2,'0')}:${m[2]}` : s;
     }
-    function parseTimeStringToFraction(val) {
-      const s = String(val || '').trim();
-      const m = s.match(/^(\d{1,2}):(\d{2})$/);
-      if (!m) return val;
-      const h = Number(m[1]), min = Number(m[2]);
-      if (h >= 0 && h < 24 && min >= 0 && min < 60) return (h * 60 + min) / 1440;
-      return val;
+
+    // From a DV range, decide if it’s a TIME list, and build a map "HH:mm" -> exact allowed value
+    function buildTimeMapFromDv(dv) {
+      const out = { isTime: false, map: new Map() };
+      if (!dv) return out;
+
+      const type = dv.getCriteriaType();
+      const vals = dv.getCriteriaValues();
+      let rng = null, items = null;
+
+      if (type === DataValidationCriteria.VALUE_IN_RANGE) {
+        rng = vals && vals[0];
+      } else if (type === DataValidationCriteria.VALUE_IN_LIST) {
+        items = vals && vals[0];
+      } else {
+        return out;
+      }
+
+      if (rng) {
+        const nums = rng.getValues();
+        const disps = rng.getDisplayValues();
+        let timeLike = 0, total = 0;
+        for (let i = 0; i < nums.length; i++) {
+          for (let j = 0; j < nums[i].length; j++) {
+            const disp = (disps[i][j] || '').toString();
+            const looksTime = /^\d{1,2}:\d{2}(?::\d{2})?$/.test(disp);
+            const num = nums[i][j];
+            if (disp !== '' && (looksTime || (num instanceof Date) || (typeof num === 'number' && num >= 0 && num < 1))) {
+              total++;
+              if (looksTime || (num instanceof Date) || (typeof num === 'number' && num >= 0 && num < 1)) timeLike++;
+              if (disp !== '') {
+                out.map.set(hhmm(disp), (num instanceof Date) ? num : num);
+              }
+            }
+          }
+        }
+        out.isTime = timeLike > 0 && timeLike >= Math.max(3, Math.floor(total * 0.6));
+        return out;
+      }
+
+      if (Array.isArray(items)) {
+        let timeLike = 0, total = 0;
+        items.forEach(s => {
+          total++;
+          const k = hhmm(s);
+          if (/^\d{1,2}:\d{2}$/.test(k)) {
+            timeLike++;
+            const parts = k.split(':').map(Number);
+            out.map.set(k, (parts[0] * 60 + parts[1]) / 1440);
+          }
+        });
+        out.isTime = timeLike > 0 && timeLike >= Math.max(3, Math.floor(total * 0.6));
+      }
+      return out;
     }
 
+    // Build per-column DV maps (for columns B..J -> j = 0..8)
+    const dvInfoPerCol = [];
+    for (let j = 0; j < 9; j++) {
+      const cell = logistics.getRange(2, 2 + j);
+      dvInfoPerCol[j] = buildTimeMapFromDv(cell.getDataValidation());
+    }
+
+    // Coerce each time-like column to the exact DV value
     const normalized = rowsToCopy.map(r => {
       const out = r.slice();
-      for (let j = 0; j < out.length; j++) {
-        if (!timeCols[j]) continue;               // only adjust time columns
-        const cell = out[j];
-        if (cell === '' || cell === null) continue;
-        if (cell instanceof Date) {
-          out[j] = timeFractionFromDate(cell);    // strip date part -> pure time
+      for (let j = 0; j < 9; j++) {
+        const dvInf = dvInfoPerCol[j];
+        if (!dvInf.isTime) continue;           // only adjust DV time columns
+        const key = hhmm(out[j]);
+        if (!key) continue;
+        if (dvInf.map.has(key)) {
+          out[j] = dvInf.map.get(key);         // exact item from Settings range
         } else {
-          out[j] = parseTimeStringToFraction(cell); // "HH:mm" -> pure time number
+          // fallback to a clean numeric time fraction
+          const m = key.match(/^(\d{1,2}):(\d{2})$/);
+          if (m) out[j] = (Number(m[1]) * 60 + Number(m[2])) / 1440;
         }
       }
       return out;
     });
 
+    // Paste
     const destRowLog = logistics.getLastRow() + 1;
     logistics.getRange(destRowLog, /*B*/2, normalized.length, /*B:J*/9).setValues(normalized);
 
-    SpreadsheetApp.flush();                 // make sure the sheet knows about the new rows
-resizeSlicersToUsedRows_(logistics);    // expand all slicers to cover all used rows
-
+    // >>> resize slicers to include the new rows <<<
+    SpreadsheetApp.flush();
+    try {
+      resizeAllRangeSlicersAuto(); // or: resizeSlicersBatchTwoPhase('Logistics');
+    } catch (e) {
+      Logger.log('resizeAllRangeSlicersAuto failed: %s', e);
+    }
 
     return {
       ok: true,
@@ -529,6 +581,9 @@ resizeSlicersToUsedRows_(logistics);    // expand all slicers to cover all used 
     return { ok: false, message: err && err.message ? err.message : 'Unknown error' };
   }
 }
+
+
+
 
 
 
