@@ -118,6 +118,23 @@
         </div>
       </details>
 
+      <!-- activities (single section with caret menu per item) -->
+      <details class="section" id="sec-activities">
+        <summary>Activities</summary>
+        <div class="section-body">
+          <div class="field">
+            <label>Add activity</label>
+            <div class="add-row">
+              <div class="search-wrap">
+                <select id="activityPicker"></select>
+              </div>
+              <button class="btn-icon" type="button" aria-label="Add activity" title="Add" onclick="addItem()">+</button>
+            </div>
+            <div id="activitiesList" class="list" aria-live="polite"></div>
+          </div>
+        </div>
+      </details>
+
       <!-- transport -->
       <details class="section" id="sec-transport">
         <summary>Transport</summary>
@@ -162,29 +179,17 @@
         </div>
       </details>
 
-      <!-- activities (single section with caret menu per item) -->
-      <details class="section" id="sec-activities">
-        <summary>Activities</summary>
-        <div class="section-body">
-          <div class="field">
-            <label>Add activity</label>
-            <div class="add-row">
-              <div class="search-wrap">
-                <select id="activityPicker"></select>
-              </div>
-              <button class="btn-icon" type="button" aria-label="Add activity" title="Add" onclick="addItem()">+</button>
-            </div>
-            <div id="activitiesList" class="list" aria-live="polite"></div>
-          </div>
-        </div>
-      </details>
+      
 
       <div class="actions">
-        <button id="saveBtn" class="btn-primary" onclick="save()">Save</button>
-        <span id="saveChip" class="chip">Saved</span>
-        <button class="btn-ghost" onclick="google.script.host.close()">Close</button>
-      </div>
-    </div>
+          <button id="saveBtn" class="btn-primary" onclick="save()">Save</button>
+          <span id="saveChip" class="chip">Saved</span>
+
+          <!-- New Convert button -->
+          <button id="convertBtn" class="btn-ghost" onclick="convert()">Convert</button>
+
+          <button class="btn-ghost" onclick="google.script.host.close()">Close</button>
+        </div>
 
     <script>
       let cache = { lists: null, defaults: null, groupsAll: [] };
@@ -554,6 +559,51 @@
 
       // Boot
       boot();
+
+
+    function convert(){
+          const btn = document.getElementById('convertBtn');
+          btn.disabled = true; btn.textContent = 'Converting…';
+
+          const values = {
+            groupName: document.getElementById('groupName').value,
+            participants: document.getElementById('participants').value,
+            leaders: document.getElementById('leaders').value,
+            freePlaces: document.getElementById('freePlaces').value,
+            subGroups: document.getElementById('subGroups').value,
+            accommodationProvider: document.getElementById('accommodationProvider').value,
+            bookingMethod: document.getElementById('bookingMethod').value,
+            type: document.getElementById('type').value,
+            board: document.getElementById('board').value,
+            activityTransport: document.getElementById('activityTransport').value,
+            returnTravel: document.getElementById('returnTravel').value,
+            otherCharges: document.getElementById('otherCharges').value,
+            otherChargesDesc: document.getElementById('otherChargesDesc').value,
+            adminChargePct: document.getElementById('adminChargePct').value,
+            discountPct: document.getElementById('discountPct').value,
+            discountGBP: document.getElementById('discountGBP').value,
+            chargeType: document.getElementById('chargeType').value,
+            breakfastTime: document.getElementById('breakfastTime').value,
+            arrival: document.getElementById('arrival').value,
+            arrivalTime: document.getElementById('arrivalTime').value,
+            departure: document.getElementById('departure').value,
+            departureTime: document.getElementById('departureTime').value,
+            activitiesCombined: state.items,
+            showMeals: document.getElementById('showMeals').checked
+          };
+
+          google.script.run.withSuccessHandler(function(res){
+            btn.disabled = false; btn.textContent = 'Convert';
+            if (res && res.ok) {
+              showChip('saveChip', 'Converted ✓', 'ok');
+            } else {
+              showChip('saveChip', (res && res.message) ? res.message : 'Convert failed', 'err');
+            }
+          }).convertQuote({ values });
+        }
+
+
+
     </script>
   </body>
 </html>
