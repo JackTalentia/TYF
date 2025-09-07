@@ -1,0 +1,109 @@
+/**
+ * Auto-detect and atomically resize ALL range-based slicers in this spreadsheet.
+ * For each source sheet that slicers point at:
+ *   Phase A: park all its slicers on one blank row after the data (zero overlap)
+ *   Phase B: move them ALL to the final identical row extent
+ * Requires Advanced Sheets service enabled (Services → + → Google Sheets API).
+ */
+function resizeAllRangeSlicersAuto() {
+  const ss = SpreadsheetApp.getActive();
+  const spreadsheetId = ss.getId();
+
+  // Map sheetId -> Apps Script Sheet object (for getLastRow/getMaxRows)
+  const sheetById = {};
+  ss.getSheets().forEach(sh => sheetById[sh.getSheetId()] = sh);
+
+  // Full metadata (to read slicers + dataRange)
+  const meta = Sheets.Spreadsheets.get(spreadsheetId);
+
+  // Group slicers by the sheet they slice (range-based slicers only)
+  const groups = new Map(); // key: sourceSheetId -> Slicer[]
+  (meta.sheets || []).forEach(sh => {
+    (sh.slicers || []).forEach(s => {
+      const dr = s.spec && s.spec.dataRange;
+      if (!dr || dr.sheetId == null) return; // skip data-source slicers (no dataRange)
+      const sid = String(dr.sheetId);
+      if (!groups.has(sid)) groups.set(sid, []);
+      groups.get(sid).push(s);
+    });
+  });
+
+  if (!groups.size) {
+    Logger.log('No range-based slicers found.');
+    return;
+  }
+
+  const requests = [];
+
+  groups.forEach((slicers, sidStr) => {
+    const sid = +sidStr;
+    const src = sheetById[sid];
+    if (!src) return;
+
+    // FINAL rows: start = smallest current start; end = getLastRow() (exclusive in GridRange)
+    const start0 = Math.min(...slicers.map(s => (s.spec.dataRange.startRowIndex || 0)));
+    const endRowIndexFinal = Math.max(src.getLastRow(), start0 + 1); // 1-based -> exclusive index
+
+    // PARKING row = just after current data (1-based)
+    const lastRow1 = src.getLastRow();
+    const parkingRow1 = lastRow1 + 1;
+
+    // Ensure the parking row exists.
+    // Use appendDimension (length = how many rows we need to add).
+    const gridSize = src.getMaxRows(); // total rows currently on the sheet
+    const need = Math.max(0, parkingRow1 - gridSize);
+    if (need > 0) {
+      requests.push({
+        appendDimension: {
+          sheetId: sid,
+          dimension: 'ROWS',
+          length: need
+        }
+      });
+    }
+
+    // Phase A: park every slicer on the single parking row (one row tall), keep columns
+    slicers.forEach(s => {
+      const dr = s.spec.dataRange;
+      requests.push({
+        updateSlicerSpec: {
+          slicerId: s.slicerId,
+          spec: {
+            dataRange: {
+              sheetId: sid,
+              startRowIndex: parkingRow1 - 1, // 0-based inclusive
+              endRowIndex: parkingRow1,       // exclusive
+              startColumnIndex: dr.startColumnIndex,
+              endColumnIndex: dr.endColumnIndex
+            }
+          },
+          fields: 'dataRange' // mask is relative to SlicerSpec
+        }
+      });
+    });
+
+    // Phase B: move them all to the final identical row extent
+    slicers.forEach(s => {
+      const dr = s.spec.dataRange;
+      requests.push({
+        updateSlicerSpec: {
+          slicerId: s.slicerId,
+          spec: {
+            dataRange: {
+              sheetId: sid,
+              startRowIndex: start0,
+              endRowIndex: endRowIndexFinal, // exclusive
+              startColumnIndex: dr.startColumnIndex,
+              endColumnIndex: dr.endColumnIndex
+            }
+          },
+          fields: 'dataRange'
+        }
+      });
+    });
+  });
+
+  // Atomic update: add rows (if needed) -> park -> final
+  Sheets.Spreadsheets.batchUpdate({ requests }, spreadsheetId);
+  Logger.log('Resized slicers for %s source sheet group(s).', groups.size);
+}
